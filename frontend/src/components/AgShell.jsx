@@ -6,6 +6,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";
 import Lenis from "lenis";
 import ParticleField from "./ParticleField.jsx";
+import ThemeToggle from "./ThemeToggle.jsx";
 import "../landing.css";
 
 gsap.registerPlugin(ScrollTrigger, SplitText);
@@ -69,7 +70,10 @@ export default function AgShell({ children, navRight }) {
           <Link to="/" className="ag-brand">
             Codyssey
           </Link>
-          {navRight}
+          <div className="ag-nav-right">
+            <ThemeToggle />
+            {navRight}
+          </div>
         </nav>
         {children}
       </div>

@@ -78,7 +78,7 @@ export default function BranchEditor({ node, onChange }) {
       </Text>
 
       {toLabel && (
-        <Text size="xs" c="dimmed" style={{ borderTop: '1px solid var(--mantine-color-gray-3)', paddingTop: 8 }}>
+        <Text size="xs" c="dimmed" style={{ borderTop: '1px solid var(--mantine-color-default-border)', paddingTop: 8 }}>
           In simple terms: participants whose {conditionText(condition)}
           {fromLabel ? ` in ${fromLabel}` : ''} will go to {toLabel}.
         </Text>

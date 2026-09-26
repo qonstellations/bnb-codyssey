@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Menu, UnstyledButton } from "@mantine/core";
 import { useAuth } from "../auth/AuthContext.jsx";
+import ThemeToggle from "./ThemeToggle.jsx";
 import "../landing.css";
 
 function AppLayout() {
@@ -15,7 +16,7 @@ function AppLayout() {
   return (
     <div className="ag ag-app">
       <header className="ag-nav ag-appbar">
-        <Link to="/dashboard" className="ag-brand">
+        <Link to="/" className="ag-brand">
           Codyssey
         </Link>
         <nav className="ag-tabs">
@@ -26,6 +27,7 @@ function AppLayout() {
             Account
           </NavLink>
         </nav>
+        <ThemeToggle />
         <Menu position="bottom-end">
           <Menu.Target>
             <UnstyledButton className="ag-pill ghost ag-pill-sm">

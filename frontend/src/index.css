@@ -1,7 +1,86 @@
+/* Colour tokens. Light = the original palette; dark = true black, shadcn-neutral greys.
+   Mantine sets data-mantine-color-scheme on <html>; index.html sets it before paint. */
+:root {
+  --app-bg: #fff;
+  --app-surface: #fff;
+  --app-soft: #f1f3f4;
+  --app-softer: #f8f9fa;
+  --app-canvas: #fcfcfd;
+  --app-line: #dadce0;
+  --app-line-soft: #e8eaed;
+  --app-ink: #1f1f1f;
+  --app-ink-strong: #000;
+  --app-ink-2: #3c4043;
+  --app-muted: #5f6368;
+  --app-subtle: #9aa0a6;
+  --app-on-ink: #fff;
+  --app-glass: rgba(255, 255, 255, 0.8);
+  --app-shadow-rgb: 60, 64, 67;
+  --app-mask-rgb: 241, 243, 244;
+  --app-accent-soft: #e8f0fe;
+  --app-accent-ink: #174ea6;
+  --app-ok-bg: #e6f4ea;
+  --app-ok-ink: #188038;
+  --app-warn-bg: #fef7e0;
+  --app-warn-ink: #b06000;
+  --app-bad-bg: #fce8e6;
+  --app-bad-ink: #d93025;
+  --app-bad-line: #e3b7b0;
+  color-scheme: light;
+}
+[data-mantine-color-scheme="dark"] {
+  --app-bg: #000;
+  --app-surface: #0a0a0a;
+  --app-soft: #171717;
+  --app-softer: #0f0f0f;
+  --app-canvas: #050505;
+  --app-line: #262626;
+  --app-line-soft: #1f1f1f;
+  --app-ink: #fafafa;
+  --app-ink-strong: #fff;
+  --app-ink-2: #d4d4d4;
+  --app-muted: #a1a1a1;
+  --app-subtle: #737373;
+  --app-on-ink: #0a0a0a;
+  --app-glass: rgba(0, 0, 0, 0.7);
+  --app-shadow-rgb: 0, 0, 0;
+  --app-mask-rgb: 23, 23, 23;
+  --app-accent-soft: #0f1d33;
+  --app-accent-ink: #8ab4f8;
+  --app-ok-bg: #0d2818;
+  --app-ok-ink: #81c995;
+  --app-warn-bg: #2b2106;
+  --app-warn-ink: #fdd663;
+  --app-bad-bg: #2c0f0d;
+  --app-bad-ink: #f28b82;
+  --app-bad-line: #5c2b25;
+  color-scheme: dark;
+}
+
+/* Smooth light/dark switch, belt-and-suspenders:
+   1) a whole-page cross-fade via the View Transitions API (ThemeToggle.jsx), which is
+      what actually makes the switch feel smooth everywhere, in one animation, in one file;
+   2) plain color transitions below, for elements the API doesn't cover in older browsers.
+   Both stay under 500ms and are off for reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 220ms;
+    animation-timing-function: ease-out;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition: background-color 180ms ease-out, border-color 180ms ease-out, color 180ms ease-out,
+      fill 180ms ease-out, stroke 180ms ease-out, box-shadow 180ms ease-out;
+  }
+}
+
 body {
   margin: 0;
-  background: #fff;
-  color: #1f1f1f;
+  background: var(--app-bg);
+  color: var(--app-ink);
 }
 
 /* Reaction-time pad */
@@ -10,8 +89,8 @@ body {
   width: min(420px, 100%);
   min-height: 148px;
   border-radius: 20px;
-  border: 1px solid #e3e1d8;
-  background: #fff;
+  border: 1px solid var(--app-line);
+  background: var(--app-surface);
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -36,8 +115,8 @@ body {
 }
 
 .rt-waiting {
-  background: #f6e9e7;
-  border-color: #e3b7b0;
+  background: var(--app-bad-bg);
+  border-color: var(--app-bad-line);
 }
 
 .rt-ready {
@@ -47,7 +126,7 @@ body {
 }
 
 .rt-result {
-  background: #fff;
+  background: var(--app-surface);
   border-color: #34a853;
 }
 
@@ -108,7 +187,7 @@ body {
 .tpl-stage {
   position: relative;
   aspect-ratio: 16 / 9;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--app-line);
   border-radius: 24px;
   display: grid;
   place-items: center;
@@ -121,19 +200,19 @@ body {
   line-height: 1.3;
   animation: tpl-in 160ms ease-out;
 }
-.tpl-feedback { font-size: 1.25rem; font-weight: 500; color: #188038; }
+.tpl-feedback { font-size: 1.25rem; font-weight: 500; color: var(--app-ok-ink); }
 .tpl-trial { position: absolute; top: 12px; left: 16px; font-size: 12px; opacity: 0.55; }
 .tpl-kbd {
   min-width: 40px;
   padding: 6px 12px;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--app-line);
   border-bottom-width: 3px;
   border-radius: 12px;
   text-align: center;
   font-weight: 500;
   transition: background 120ms, transform 120ms;
 }
-.tpl-kbd-on { background: #1f1f1f; color: #fff; border-color: #1f1f1f; transform: translateY(2px); }
+.tpl-kbd-on { background: var(--app-ink); color: var(--app-on-ink); border-color: var(--app-ink); transform: translateY(2px); }
 @keyframes tpl-in {
   from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: scale(1); }

@@ -9,7 +9,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './flow.css'
-import { Group, Paper, Stack, Text } from '@mantine/core'
+import { Group, Paper, Stack, Text, useComputedColorScheme } from '@mantine/core'
 import { useBuilderStore } from './store.js'
 import { nodeTypes, NODE_PALETTE } from './nodes/index.js'
 import { conditionText } from './format.js'
@@ -43,8 +43,8 @@ function Palette() {
       style={{
         width: 208,
         flexShrink: 0,
-        borderRight: '1px solid var(--mantine-color-gray-3)',
-        background: '#fff',
+        borderRight: '1px solid var(--mantine-color-default-border)',
+        background: 'var(--app-surface)',
         overflowY: 'auto',
       }}
     >
@@ -91,6 +91,7 @@ function Palette() {
 
 function FlowCanvas() {
   const { screenToFlowPosition, fitView } = useReactFlow()
+  const colorScheme = useComputedColorScheme('light')
   const loadId = useBuilderStore((s) => s.loadId)
   // Refit whenever a whole graph is loaded (AI, template), not just on mount.
   useEffect(() => {
@@ -119,8 +120,8 @@ function FlowCanvas() {
       ...(branchText.has(e.id)
         ? {
             label: branchText.get(e.id),
-            labelStyle: { fontSize: 11, fill: '#5f6368' },
-            labelBgStyle: { fill: '#fff' },
+            labelStyle: { fontSize: 11, fill: 'var(--app-muted)' },
+            labelBgStyle: { fill: 'var(--app-surface)' },
             labelShowBg: true,
           }
         : null),
@@ -197,7 +198,7 @@ function FlowCanvas() {
   return (
     <div
       ref={wrapRef}
-      style={{ flex: 1, minHeight: 0, minWidth: 0, background: '#fcfcfd', position: 'relative' }}
+      style={{ flex: 1, minHeight: 0, minWidth: 0, background: 'var(--app-canvas)', position: 'relative' }}
       onDrop={onDrop}
       onDragOver={onDragOver}
       onKeyDown={onKeyDown}
@@ -218,17 +219,17 @@ function FlowCanvas() {
         deleteKeyCode={null}
         fitView
         fitViewOptions={{ padding: 0.3, duration: 400 }}
-        colorMode="light"
+        colorMode={colorScheme}
       >
-        <Background variant="dots" gap={22} size={1.4} color="#dadce0" bgColor="#fcfcfd" />
+        <Background variant="dots" gap={22} size={1.4} color="var(--app-line)" bgColor="var(--app-canvas)" />
         <Controls showInteractive={false} position="bottom-left" />
         <MiniMap
           pannable
           zoomable
           nodeBorderRadius={12}
-          nodeColor={(n) => NODE_DOT[n.type] ?? '#bdc1c6'}
+          nodeColor={(n) => NODE_DOT[n.type] ?? 'var(--app-subtle)'}
           nodeStrokeWidth={0}
-          maskColor="rgba(241, 243, 244, 0.7)"
+          maskColor="rgba(var(--app-mask-rgb), 0.7)"
           style={{ width: 180, height: 120 }}
         />
       </ReactFlow>
@@ -257,7 +258,7 @@ function FlowCanvas() {
           <Text
             size="sm"
             c="dimmed"
-            style={{ background: '#fff', padding: '8px 16px', borderRadius: 999, border: '1px solid #e8eaed' }}
+            style={{ background: 'var(--app-surface)', padding: '8px 16px', borderRadius: 999, border: '1px solid var(--app-line-soft)' }}
           >
             Add a Task from the left to start building
           </Text>
