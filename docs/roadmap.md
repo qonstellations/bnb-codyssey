@@ -62,15 +62,21 @@ Pure JavaScript in `frontend/src/engine/`, no React, no network. See
 [architecture.md](architecture.md#the-timing-engine) for how it works.
 
 - [x] `scheduler.js` — single rAF loop, ms → whole-frame conversion, dropped-frame accounting
-- [x] `renderer.js` — full-window canvas, DPR-aware text, fixation cross
-- [x] `input.js` — `event.timeStamp` capture, `event.repeat` ignored, `validKeys` filtering
+- [x] `renderer.js` — full-window canvas, DPR-aware text, fixation cross, and cached text
+      auto-fit so a long stimulus is never clipped and `measureText` stays out of the frame loop
+- [x] `input.js` — `event.timeStamp` capture, `event.repeat` ignored, `validKeys` filtering,
+      physical-key matching via `event.code` (CapsLock and non-Latin layouts), `preventDefault`
+      so Space cannot scroll, and `data-key` touch-pad support
 - [x] RT = response `timeStamp` − stimulus onset frame timestamp
 - [x] Safari epoch-timestamp normalisation against `performance.timeOrigin`
 - [x] `calibration.js` — ~120 rAF frames → refresh rate, jitter, dropped frames, 0–100 score
 - [x] Measured refresh rate fed into the scheduler for the whole run
 - [x] `randomizer.js` — mulberry32 seeded PRNG, Fisher–Yates, max-repeats-in-a-row, block repetition
-- [x] `flow.js` — generator walking blocks, following branch/loop edges, 500-step cycle guard
+- [x] `flow.js` — generator walking blocks, following branch/loop edges, with a 500-step cycle
+      guard and a per-branch fire cap so a "redo practice" rule cannot trap a participant
 - [x] `preloader.js` — `img.decode()` for images, `decodeAudioData` for audio, progress reporting
+- [x] Webfont preloaded before the first trial, raced against a timeout, so canvas glyphs never
+      swap mid-stimulus
 - [x] `audio.js` — shared `AudioContext`, scheduled start, `webkitAudioContext` fallback
 - [x] `logger.worker.js` — Web Worker buffer with an IndexedDB mirror
 - [x] `uploader.js` — flush between blocks, 3 retries, `sendBeacon` on `visibilitychange`/`pagehide`
@@ -139,7 +145,8 @@ Pure JavaScript in `frontend/src/engine/`, no React, no network. See
 - [x] `friendlyError()` rewrites Zod messages into actionable sentences
 - [x] Toolbar: editable title, undo/redo, save + 30 s autosave when dirty, preview, publish
 - [x] Stimuli: dropzone (direct to Blob via `@vercel/blob/client`), library, picker
-- [x] Ten built-in paradigm templates across seven categories, plus per-template assertions
+- [x] Six built-in paradigm templates — Simple RT, Choice RT, Stroop, Go/No-Go, 2-back, Task
+      switching — each with a preview card, estimated duration, category and difficulty level
 - [x] `HowItWorksModal` — a four-chapter interactive guide with a working mini canvas and a
       playable Stroop trial
 - [~] Trials are edited in a modal form and table, not as individual objects on the canvas. The
@@ -202,7 +209,7 @@ Full detail, including every known gap, in [privacy.md](privacy.md).
       CSV header and row count, cascade-delete counts. Skips the AI route without a key.
 - [x] `services/normalizeDraft.check.js` — 18 assertions on normalisation, repair triggering and
       `trialTypes` expansion
-- [x] `engine/selfcheck.mjs` — assertions on the pure timing and flow logic
+- [x] `engine/selfcheck.mjs` — 19 assertions on the pure timing and flow logic
 - [x] `shared/templates/templates.check.mjs` — every template compiles and expands to the
       expected trial counts
 - [~] No test framework. These are hand-rolled `assert` scripts, so there is no runner, no

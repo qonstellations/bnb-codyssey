@@ -66,7 +66,7 @@ milliseconds. Safari's epoch-based `event.timeStamp` quirk is normalised explici
 done up front behind a progress bar. The trial itself is a single `requestAnimationFrame` loop.
 Data uploads between blocks and via `sendBeacon` on tab close.
 
-**The participant bundle is ~32 KB gzipped** and contains no React, no Mantine and no charting
+**The participant bundle is ~34 KB gzipped** and contains no React, no Mantine and no charting
 library, because a participant should never be able to download the researcher's application to
 take a study.
 
@@ -79,8 +79,8 @@ The full explanation, with the code, is in
 
 - Visual drag-and-drop builder — a React Flow canvas of `Start` / `Block` / `Branch` / `Loop` /
   `End` nodes, with a bidirectional compiler that maps schema errors back to the offending node
-- Ten built-in paradigm templates — Stroop, Flanker, Go/No-Go, Simple and Choice RT, N-back,
-  lexical decision, task switching, visual search, IAT
+- Six built-in paradigm templates — Simple RT, Choice RT, Stroop, Go/No-Go, 2-back and Task
+  switching, each with a preview card, an estimated duration, and a difficulty level
 - AI experiment generation from a plain-English description, with a clarifying-questions step and
   a schema-validate-repair loop
 - Conditional branching on live metrics, block loops, shuffling with a max-repeats constraint,
@@ -97,7 +97,11 @@ The full explanation, with the code, is in
 - A consent screen with a decline path that collects nothing at all
 - A device timing check with an honest quality score
 - Fullscreen and audio unlocked by the instructions click
+- A touch response pad on touch-only devices — one large button per response key
+- Canvas text auto-fitted to the viewport, with the webfont preloaded so glyphs never swap
+  mid-trial
 - Preloaded assets with a progress bar, then a fully offline trial run
+- Block intro screens between phases, with practice retries explained in place
 - An 8-character withdrawal code and a public self-service deletion route
 
 **Privacy posture:** participants are identified only by a server-generated random UUID. The data
@@ -191,8 +195,8 @@ Two applications are built from one Vite project, as separate Rollup inputs:
 
 | Entry | Audience | Payload |
 |---|---|---|
-| `index.html` | researcher app | React 19, Mantine, React Flow, GSAP, charts — ~478 KB gz |
-| `run.html` | participant app | plain JS, hand-rolled DOM helper, no framework — **~32 KB gz** |
+| `index.html` | researcher app | React 19, Mantine, React Flow, GSAP, charts — ~479 KB gz |
+| `run.html` | participant app | plain JS, hand-rolled DOM helper, no framework — **~34 KB gz** |
 
 The separation is the most important structural decision in the project: a participant never
 downloads the researcher's application, and a researcher-side dependency change cannot alter
@@ -203,7 +207,7 @@ engine, runtime and backend. Change the task model in one file and all four foll
 
 The participant runtime is deliberately offline during trials. Its screen sequence is
 `loading → consent → device check → session start → instructions → preload → trials →
-between-block upload → completion code`, and everything expensive happens before the clock
+block intro + upload → completion code`, and everything expensive happens before the clock
 starts.
 
 Full detail, including the request pipeline, data model and the eight deliberately-taken
