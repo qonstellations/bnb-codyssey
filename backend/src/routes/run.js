@@ -5,10 +5,12 @@ import { z } from 'zod';
 import Experiment from '../models/Experiment.js';
 import Session from '../models/Session.js';
 import Trial from '../models/Trial.js';
-import { rateLimit, validate } from '../middleware.js';
+import { rateLimit, validate, requireObjectId } from '../middleware.js';
 import { asyncHandler, ApiError, ApiResponse } from '../utils/index.js';
 
 const router = Router();
+
+router.param('sessionId', requireObjectId('sessionId', 'Session not found'));
 
 // ─── Schemas ───────────────────────────────────────────────
 

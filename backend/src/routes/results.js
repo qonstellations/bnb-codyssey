@@ -2,10 +2,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 import Session from '../models/Session.js';
 import Trial from '../models/Trial.js';
-import { requireAuth, ownsExperiment, validate } from '../middleware.js';
+import { requireAuth, ownsExperiment, validate, requireObjectId } from '../middleware.js';
 import { asyncHandler, ApiError, ApiResponse } from '../utils/index.js';
 
 const router = Router();
+
+router.param('sessionId', requireObjectId('sessionId', 'Session not found'));
 
 // ─── Schemas ───────────────────────────────────────────────
 
