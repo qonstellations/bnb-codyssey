@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { isValidObjectId } from 'mongoose';
 import { z } from 'zod';
 import Template from '../models/Template.js';
-import { requireAuth, validate } from '../middleware.js';
+import { requireAuth, validate } from '../middlewares/index.js';
 import { experimentSchema } from '../validators/experimentSchema.js';
 import { asyncHandler, ApiError, ApiResponse } from '../utils/index.js';
 

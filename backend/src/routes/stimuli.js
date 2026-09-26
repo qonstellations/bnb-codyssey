@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { del } from '@vercel/blob';
-import Stimulus from '../models/Stimulus.js';
-import { requireAuth, validate, requireObjectId } from '../middleware.js';
-import { asyncHandler, ApiError, ApiResponse } from '../utils/index.js';
+import { requireAuth, validate, requireObjectId } from '../middlewares/index.js';
+import {
+  getUploadUrl,
+  createStimulus,
+  getStimuli,
+  deleteStimulus,
+} from '../controllers/stimuli.controller.js';
 
 const router = Router();
 
@@ -28,94 +31,11 @@ const createSchema = z.object({
   size: z.number().int().positive().max(50 * 1024 * 1024),
 });
 
-// ─── POST /upload-url ──────────────────────────────────────
-// Generate a Vercel Blob client upload token.
-// The frontend uses this to upload files directly to Blob storage.
+// ─── Routes ────────────────────────────────────────────────
 
-router.post(
-  '/upload-url',
-  requireAuth,
-  validate(uploadUrlSchema),
-  asyncHandler(async (req, res) => {
-    const { handleUpload } = await import('@vercel/blob/client');
-
-    // The SDK's handleUpload speaks client events, not our {filename, contentType}
-    // contract — synthesize the generate-token event so API.md keeps its shape.
-    const jsonResponse = await handleUpload({
-      body: {
-        type: 'blob.generate-client-token',
-        payload: { pathname: req.body.filename },
-      },
-      request: req,
-      onBeforeGenerateToken: async () => ({
-        allowedContentTypes: [req.body.contentType],
-        maximumSizeInBytes: 50 * 1024 * 1024, // 50 MB
-      }),
-      onUploadCompleted: async () => {
-        // Could auto-create stimulus record here in the future
-      },
-    });
-
-    res.json(new ApiResponse(200, jsonResponse, 'Upload URL generated successfully'));
-  })
-);
-
-// ─── POST / ────────────────────────────────────────────────
-// Save a stimulus metadata record after the client-side upload.
-
-router.post(
-  '/',
-  requireAuth,
-  validate(createSchema),
-  asyncHandler(async (req, res) => {
-    const stimulus = await Stimulus.create({
-      owner: req.userId,
-      ...req.body,
-    });
-
-    res.status(201).json(new ApiResponse(201, { stimulus }, 'Stimulus created successfully'));
-  })
-);
-
-// ─── GET / ─────────────────────────────────────────────────
-// List all stimuli owned by the authenticated researcher.
-
-router.get(
-  '/',
-  requireAuth,
-  asyncHandler(async (req, res) => {
-    const stimuli = await Stimulus.find({ owner: req.userId }).sort({ createdAt: -1 });
-    res.json(new ApiResponse(200, { stimuli }, 'Stimuli retrieved successfully'));
-  })
-);
-
-// ─── DELETE /:id ───────────────────────────────────────────
-// Delete stimulus record + file from Vercel Blob.
-
-router.delete(
-  '/:id',
-  requireAuth,
-  asyncHandler(async (req, res) => {
-    const stimulus = await Stimulus.findById(req.params.id);
-
-    if (!stimulus) {
-      throw new ApiError(404, 'Stimulus not found', [], '', 'NOT_FOUND');
-    }
-    if (stimulus.owner.toString() !== req.userId) {
-      throw new ApiError(403, 'You do not own this stimulus', [], '', 'FORBIDDEN');
-    }
-
-    // Delete from Vercel Blob (non-fatal if it fails)
-    try {
-      await del(stimulus.url);
-    } catch {
-      // Blob deletion failure is non-fatal
-    }
-
-    await Stimulus.findByIdAndDelete(stimulus._id);
-    res.json(new ApiResponse(200, { deleted: true }, 'Stimulus deleted successfully'));
-  })
-);
+router.post('/upload-url', requireAuth, validate(uploadUrlSchema), getUploadUrl);
+router.post('/', requireAuth, validate(createSchema), createStimulus);
+router.get('/', requireAuth, getStimuli);
+router.delete('/:id', requireAuth, deleteStimulus);
 
 export default router;
-
