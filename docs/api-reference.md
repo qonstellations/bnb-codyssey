@@ -1,8 +1,11 @@
-# API.md — Full API Specification (as built)
+# API Reference — Full HTTP Specification (as built)
 
 > **Version:** 1.1 · **Base URL:** `http://localhost:3001/api/v1` (local dev — no deployed backend)
 > **Content-Type:** `application/json` unless noted otherwise
 > **34 routes** · reflects the `integration` branch · deployment is localhost-only, no public URLs
+
+For a scannable overview see [api-routes.md](api-routes.md). For setup see the
+[root README](../README.md). For system design see [architecture.md](architecture.md).
 
 ---
 
@@ -1359,7 +1362,8 @@ show it with the problems highlighted rather than discarding the work. The messa
 
 > Responses are cached in-process for 60 min (max 100 entries). Only **valid** drafts are
 > cached, so "Try again" after a bad generation genuinely re-runs the model. The cache is
-> per-process — see PLAN.md if you run more than one instance.
+> per-process — see [roadmap.md](roadmap.md#p2--engineering-debt-worth-fixing) if you run more
+> than one instance.
 > `src/api/ai.js` is wired to this route.
 
 ---
