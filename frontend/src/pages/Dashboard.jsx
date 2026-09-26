@@ -12,6 +12,7 @@ import {
   updateExperiment,
 } from '../api/experiments.js'
 import { sampleStroop } from '../shared/sampleStroop.js'
+import { copyText } from '../shared/clipboard.js'
 import LoadingScreen from '../components/LoadingScreen.jsx'
 import ErrorState from '../components/ErrorState.jsx'
 import EmptyState from '../components/EmptyState.jsx'
@@ -40,8 +41,11 @@ function ExperimentCard({ experiment, onChanged }) {
   }
 
   async function copyLink() {
-    await navigator.clipboard.writeText(participantUrl(experiment.slug))
-    notifications.show({ message: 'Participant link copied' })
+    const ok = await copyText(participantUrl(experiment.slug))
+    notifications.show({
+      color: ok ? undefined : 'yellow',
+      message: ok ? 'Participant link copied' : "Couldn't copy automatically — link is above, copy it manually",
+    })
   }
 
   function confirmPublish() {

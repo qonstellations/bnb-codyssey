@@ -13,16 +13,15 @@ const EXAMPLE =
   "Show a colour word for 2 seconds after a 500 ms fixation. Press F if the word matches " +
   "its ink colour, J if not.";
 
-function applyDraft(draft, title, loadFromJson, onTitleChange) {
+function applyDraft(draft, loadFromJson) {
   const { ok, errors, data } = validateExperiment(draft);
   if (!ok) return errors.map((message) => ({ message }));
   loadFromJson(data);
-  if (title) onTitleChange(title);
   notifications.show({ message: "Experiment generated — review it on the canvas" });
   return null;
 }
 
-export default function AiGenerateModal({ opened, onClose, onTitleChange }) {
+export default function AiGenerateModal({ opened, onClose }) {
   const [description, setDescription] = useState("");
   const [generating, setGenerating] = useState(false);
   const [errors, setErrors] = useState([]);
@@ -35,8 +34,14 @@ export default function AiGenerateModal({ opened, onClose, onTitleChange }) {
     setGenerating(true);
     setErrors([]);
     try {
-      const result = await generateExperiment(description.trim());
-      const problems = applyDraft(result.draft, result.title, loadFromJson, onTitleChange);
+      const { draft, valid, errors: serverErrors } = await generateExperiment(description.trim());
+      // The backend validated the draft already — surface its errors rather
+      // than loading something the canvas would reject.
+      if (valid === false) {
+        setErrors((serverErrors ?? []).map((e) => ({ message: e.message ?? String(e) })));
+        return;
+      }
+      const problems = applyDraft(draft, loadFromJson);
       if (problems) {
         setErrors(problems);
       } else {
