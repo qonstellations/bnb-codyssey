@@ -81,7 +81,7 @@ const simpleRtTemplate = {
 }
 
 export const TEMPLATES = [
-  { id: 'stroop', label: 'Stroop', draft: sampleStroop },
-  { id: 'flanker', label: 'Flanker', draft: flankerTemplate },
-  { id: 'simple-rt', label: 'Simple reaction time', draft: simpleRtTemplate },
+  { id: 'stroop', label: 'Stroop', blurb: 'Practice → retry check → Main task', draft: sampleStroop },
+  { id: 'flanker', label: 'Flanker', blurb: 'One main task, 4 trials', draft: flankerTemplate },
+  { id: 'simple-rt', label: 'Simple reaction time', blurb: 'One signal, repeated 5 times', draft: simpleRtTemplate },
 ]

@@ -8,9 +8,10 @@ import { openConfirmModal } from "../../components/ConfirmModal.jsx";
 
 const MAX_CHARS = 2000;
 const EXAMPLE =
-  "A Stroop task. Practice block with 4 trials, then a main block with 20 trials. " +
+  "Participants complete 10 practice trials. If their accuracy is below 70%, they repeat " +
+  "the practice. Once they reach 70%, they continue to a 40-trial main task. " +
   "Show a colour word for 2 seconds after a 500 ms fixation. Press F if the word matches " +
-  "its ink colour, J if not. If practice accuracy is below 70%, repeat practice.";
+  "its ink colour, J if not.";
 
 function applyDraft(draft, title, loadFromJson, onTitleChange) {
   const { ok, errors, data } = validateExperiment(draft);
@@ -66,8 +67,9 @@ export default function AiGenerateModal({ opened, onClose, onTitleChange }) {
     <Modal opened={opened} onClose={onClose} title="Describe your experiment" size="lg">
       <Stack>
         <Text size="sm" c="dimmed">
-          Write a paragraph — task type, blocks, trials, keys, timing. The AI returns a draft
-          you can edit on the canvas before saving.
+          Describe the task in plain words — what participants see and do. The assistant drafts
+          the full flow, which appears on your canvas for review. Nothing is saved until you
+          press Save.
         </Text>
         <Textarea
           placeholder="e.g. A Flanker task with…"
