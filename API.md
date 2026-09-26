@@ -10,10 +10,11 @@
 - [Conventions](#conventions)
 - [Data Models](#data-models)
 - [Health](#1-health)
-- [Participant Runtime](#2-participant-runtime)
-- [Experiments](#3-experiments)
-- [Stimuli](#4-stimuli)
-- [Results](#5-results)
+- [Auth](#2-auth)
+- [Participant Runtime](#3-participant-runtime)
+- [Experiments](#4-experiments)
+- [Stimuli](#5-stimuli)
+- [Results](#6-results)
 
 ---
 
@@ -24,8 +25,8 @@
 | Symbol | Level | Header |
 |---|---|---|
 | 🌐 | **Public** — rate-limited via Upstash | None |
-| 🔒 | **Auth** — any logged-in researcher | `Authorization: Bearer <clerk_token>` |
-| 👤 | **Owner** — Auth + must own the resource | `Authorization: Bearer <clerk_token>` |
+| 🔒 | **Auth** — any logged-in researcher | `Authorization: Bearer <access_token>` |
+| 👤 | **Owner** — Auth + must own the resource | `Authorization: Bearer <access_token>` |
 
 ### Response Envelope
 
@@ -47,7 +48,7 @@ All **error** responses share this shape:
 | HTTP Status | `code` | When |
 |---|---|---|
 | `400` | `VALIDATION_ERROR` | Request body fails Zod validation |
-| `401` | `UNAUTHORIZED` | Missing or invalid Clerk token |
+| `401` | `UNAUTHORIZED` | Missing or invalid access token |
 | `403` | `FORBIDDEN` | Authenticated but don't own the resource |
 | `404` | `NOT_FOUND` | Resource doesn't exist |
 | `409` | `CONFLICT` | Action conflicts with current state (e.g. publishing a closed experiment) |
@@ -69,12 +70,30 @@ No pagination for v1. List endpoints return all records.
 
 ## Data Models
 
+### User
+
+```js
+{
+  _id:          ObjectId,          // auto
+  name:         String,            // 1–100 chars
+  email:        String,            // unique, lowercase
+  passwordHash: String,            // bcrypt hash (never returned in responses)
+  refreshToken: String | null,     // hashed refresh token (for rotation/invalidation)
+  createdAt:    Date,              // auto (Mongoose timestamps)
+  updatedAt:    Date               // auto (Mongoose timestamps)
+}
+```
+
+**Indexes:** `{ email: 1 }` (unique)
+
+---
+
 ### Experiment
 
 ```js
 {
   _id:        ObjectId,          // auto
-  owner:      String,            // Clerk user ID
+  owner:      ObjectId,          // ref → User
   title:      String,            // default: "Untitled Experiment"
   draft:      Object,            // full experiment JSON (nodes, edges, settings)
   versions: [                    // frozen published snapshots
@@ -161,7 +180,7 @@ No pagination for v1. List endpoints return all records.
 ```js
 {
   _id:        ObjectId,          // auto
-  owner:      String,            // Clerk user ID
+  owner:      ObjectId,          // ref → User
   name:       String,            // user-facing label, e.g. "red_circle.png"
   type:       String,            // enum: "image" | "audio" | "video"
   url:        String,            // Vercel Blob URL
@@ -197,7 +216,191 @@ Check that the server is alive.
 
 ---
 
-## 2. Participant Runtime
+## 2. Auth
+
+Register, login, token refresh, logout, and profile routes. Uses JWT access + refresh token pairs.
+
+- **Access token:** short-lived (15 min), sent as `Authorization: Bearer <token>`
+- **Refresh token:** long-lived (7 days), sent in request body to `/auth/refresh`
+
+---
+
+### `POST /api/v1/auth/register` 🌐
+
+Create a new researcher account.
+
+**Request body:**
+
+```json
+{
+  "name": "Jane Researcher",
+  "email": "jane@university.edu",
+  "password": "s3cur3Pa$$word"
+}
+```
+
+| Field | Type | Required | Validation |
+|---|---|---|---|
+| `name` | `string` | yes | 1–100 chars |
+| `email` | `string` | yes | valid email, max 255 chars |
+| `password` | `string` | yes | min 8 chars |
+
+**Response: `201 Created`**
+
+```json
+{
+  "user": {
+    "_id": "665f1a2b3c4d5e6f7a8b9c00",
+    "name": "Jane Researcher",
+    "email": "jane@university.edu",
+    "createdAt": "2026-09-26T10:00:00.000Z"
+  },
+  "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+  "refreshToken": "dGhpcyBpcyBhIHJlZnJl..."
+}
+```
+
+**Errors:**
+
+| Status | Code | When |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Missing/invalid fields |
+| `409` | `CONFLICT` | Email already registered |
+
+---
+
+### `POST /api/v1/auth/login` 🌐
+
+Log in with email and password.
+
+**Request body:**
+
+```json
+{
+  "email": "jane@university.edu",
+  "password": "s3cur3Pa$$word"
+}
+```
+
+| Field | Type | Required | Validation |
+|---|---|---|---|
+| `email` | `string` | yes | valid email |
+| `password` | `string` | yes | |
+
+**Response: `200 OK`**
+
+```json
+{
+  "user": {
+    "_id": "665f1a2b3c4d5e6f7a8b9c00",
+    "name": "Jane Researcher",
+    "email": "jane@university.edu",
+    "createdAt": "2026-09-26T10:00:00.000Z"
+  },
+  "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+  "refreshToken": "dGhpcyBpcyBhIHJlZnJl..."
+}
+```
+
+**Errors:**
+
+| Status | Code | When |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Missing fields |
+| `401` | `UNAUTHORIZED` | Wrong email or password |
+
+---
+
+### `POST /api/v1/auth/refresh` 🌐
+
+Exchange a valid refresh token for a new access + refresh token pair. The old refresh token is invalidated (rotation).
+
+**Request body:**
+
+```json
+{
+  "refreshToken": "dGhpcyBpcyBhIHJlZnJl..."
+}
+```
+
+| Field | Type | Required | Validation |
+|---|---|---|---|
+| `refreshToken` | `string` | yes | |
+
+**Response: `200 OK`**
+
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+  "refreshToken": "bmV3IHJlZnJlc2ggdG9r..."
+}
+```
+
+**Errors:**
+
+| Status | Code | When |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Missing refresh token |
+| `401` | `UNAUTHORIZED` | Invalid or expired refresh token |
+
+---
+
+### `POST /api/v1/auth/logout` 🔒
+
+Invalidate the refresh token so it can't be used again.
+
+**Request body:**
+
+```json
+{
+  "refreshToken": "dGhpcyBpcyBhIHJlZnJl..."
+}
+```
+
+| Field | Type | Required | Validation |
+|---|---|---|---|
+| `refreshToken` | `string` | yes | |
+
+**Response: `200 OK`**
+
+```json
+{
+  "ok": true
+}
+```
+
+**Errors:**
+
+| Status | Code | When |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Missing refresh token |
+
+---
+
+### `GET /api/v1/auth/me` 🔒
+
+Get the currently authenticated user's profile.
+
+**Request:** none
+
+**Response: `200 OK`**
+
+```json
+{
+  "user": {
+    "_id": "665f1a2b3c4d5e6f7a8b9c00",
+    "name": "Jane Researcher",
+    "email": "jane@university.edu",
+    "createdAt": "2026-09-26T10:00:00.000Z"
+  }
+}
+```
+
+---
+
+---
+
+## 3. Participant Runtime
 
 Public routes used by the timing engine. All rate-limited.
 
@@ -537,9 +740,9 @@ Participant withdraws their data. Deletes the session and all its trials permane
 
 ---
 
-## 3. Experiments
+## 4. Experiments
 
-Researcher routes for managing experiments. All require Clerk auth.
+Researcher routes for managing experiments. All require auth.
 
 ---
 
@@ -833,7 +1036,7 @@ Freeze the current draft as a new published version. Generates a slug on first p
 
 ---
 
-## 4. Stimuli
+## 5. Stimuli
 
 File management for experiment assets. Upload goes directly from the browser to Vercel Blob — these routes handle the token handoff and metadata records.
 
@@ -976,7 +1179,7 @@ Delete a stimulus record and its file from Vercel Blob. Owner-only (server check
 
 ---
 
-## 5. Results
+## 6. Results
 
 Read-only data analysis routes plus an exclude toggle. All owner-only.
 

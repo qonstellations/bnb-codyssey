@@ -17,6 +17,18 @@ All routes live under `/api/v1`. Base URL: your backend Vercel URL.
 
 ---
 
+## Auth
+
+| Method | Route | Auth | What it does |
+|---|---|---|---|
+| POST | `/api/v1/auth/register` | 🌐 | Create a researcher account |
+| POST | `/api/v1/auth/login` | 🌐 | Log in → access + refresh tokens |
+| POST | `/api/v1/auth/refresh` | 🌐 | Swap refresh token for new token pair |
+| POST | `/api/v1/auth/logout` | 🔒 | Invalidate refresh token |
+| GET | `/api/v1/auth/me` | 🔒 | Get current user profile |
+
+---
+
 ## Participant (runtime)
 
 | Method | Route | Auth | What it does |
@@ -66,4 +78,4 @@ All routes live under `/api/v1`. Base URL: your backend Vercel URL.
 | PATCH | `/api/v1/results/:experimentId/sessions/:sessionId` | 👤 | Exclude / include a session |
 | GET | `/api/v1/results/:experimentId/export?format=csv\|json` | 👤 | Download all data |
 
-**Total: 25 routes**
+**Total: 29 routes**

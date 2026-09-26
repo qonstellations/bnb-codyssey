@@ -111,6 +111,11 @@ Build in `/frontend/src/engine`. Pure JavaScript, **no React**.
 - [ ] Clerk `<SignIn />` / `<SignUp />` pages
 - [ ] Protected routes for dashboard and builder
 - [ ] `api/client.js` attaches Clerk token to every request
+- [ ] `POST /api/v1/auth/register`
+- [ ] `POST /api/v1/auth/login`
+- [ ] `POST /api/v1/auth/refresh`
+- [ ] `POST /api/v1/auth/logout`
+- [ ] `GET /api/v1/auth/me`
 - [ ] `GET /api/v1/experiments`
 - [ ] `POST /api/v1/experiments`
 - [ ] `GET /api/v1/experiments/:id`
