@@ -1,29 +1,21 @@
-import { cached, clarifyQuestions, generateExperimentDraft } from '../services/groq.js';
+import { cached, generateRecipe } from '../services/groq.js';
 import { ApiError, ApiResponse, asyncHandler } from '../utils/index.js';
 
-// Two-step flow, stateless: first call may return clarifying questions; the
-// follow-up call (answers or forceDraft) always returns a draft.
+// Returns a recipe of template-library blocks; the client expands it with the
+// library's coded trials (frontend/src/shared/templates composeFromTemplates).
 export const generateDraft = asyncHandler(async (req, res) => {
   if (!process.env.GROQ_API_KEY) {
     throw new ApiError(503, 'AI generation is not configured (GROQ_API_KEY missing on server)', [], '', 'AI_NOT_CONFIGURED');
   }
-  const { prompt, answers = [], forceDraft = false } = req.body;
+  const { prompt } = req.body;
 
   try {
-    if (!answers.length && !forceDraft) {
-      const questions = await cached(`q:${prompt}`, () => clarifyQuestions(prompt));
-      if (questions.length) {
-        return res.json(new ApiResponse(200, { kind: 'questions', questions }, 'Clarification needed'));
-      }
-    }
-    // Only valid drafts are cached, so "Try again" after a bad draft really regenerates.
-    const g = await cached(`d:${prompt}:${JSON.stringify(answers)}`, () => generateExperimentDraft(prompt, answers), {
-      keep: (r) => r.ok,
-    });
+    // Only valid recipes are cached, so "Try again" after a bad one really regenerates.
+    const g = await cached(`r:${prompt}`, () => generateRecipe(prompt), { keep: (r) => r.ok });
     res.json(
       new ApiResponse(
         200,
-        { kind: 'draft', title: g.title, notes: g.notes, draft: g.data ?? g.raw, valid: g.ok, errors: g.errors },
+        { kind: 'draft', title: g.title, notes: g.notes, recipe: g.data, valid: g.ok, errors: g.errors },
         g.ok ? 'Draft generated' : 'Draft generated with validation issues'
       )
     );

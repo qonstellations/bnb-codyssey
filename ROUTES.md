@@ -85,14 +85,11 @@ The frontend unwraps `.data` once in `src/api/client.js`, so app code always see
 
 | Method | Route | Auth | What it does |
 |---|---|---|---|
-| POST | `/api/v1/generate` | 🔒 | Groq (`llama-3.3-70b`) turns a prompt into a schema-validated draft |
+| POST | `/api/v1/generate` | 🔒 | Groq picks and combines blocks from the 6 coded templates |
 
-> Body: `{ "prompt": "…" }` (10–2000 chars). Returns `{ draft, valid, errors }` — the draft is
-> validated server-side against the same Zod schema the builder uses, so a bad generation is
-> reported instead of silently loaded.
-> ⚠️ **Known gap:** the frontend AI modal still calls the old `/ai/generate-experiment` with
-> `{ description }`. Point `src/api/ai.js` at `/generate` and rename the field to `prompt` to
-> close it. See PLAN.md Phase 10.
+> Body: `{ "prompt": "…" }` (10–2000 chars). Returns `{ recipe, title, notes, valid, errors }`.
+> The recipe only references template-library blocks (checked server-side); the client copies
+> their trials verbatim via `composeFromTemplates`.
 
 ---
 
