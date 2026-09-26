@@ -12,9 +12,10 @@ import './flow.css'
 import { Group, Paper, Stack, Text } from '@mantine/core'
 import { useBuilderStore } from './store.js'
 import { nodeTypes, NODE_PALETTE } from './nodes/index.js'
+import { conditionText } from './format.js'
 
 const DEFAULT_DATA = {
-  block: { label: 'New block', shuffle: true, maxRepeats: 2, repetitions: 1, trials: [] },
+  block: { label: 'New task', shuffle: true, maxRepeats: 2, repetitions: 1, trials: [] },
   branch: { condition: { metric: 'accuracy', operator: '<', value: 0.7 } },
   loop: { repetitions: 2 },
 }
@@ -30,6 +31,7 @@ const NODE_DOT = {
 const EDGE_DEFAULTS = { type: 'smoothstep', pathOptions: { borderRadius: 16 } }
 
 function Palette() {
+  const appendTask = useBuilderStore((s) => s.appendTask)
   const onDragStart = (event, type) => {
     event.dataTransfer.setData('application/builder-node-type', type)
     event.dataTransfer.effectAllowed = 'move'
@@ -39,7 +41,7 @@ function Palette() {
       gap="xs"
       p="sm"
       style={{
-        width: 176,
+        width: 208,
         flexShrink: 0,
         borderRight: '1px solid var(--mantine-color-gray-3)',
         background: '#fff',
@@ -47,12 +49,14 @@ function Palette() {
       }}
     >
       <Text size="sm" fw={700}>
-        Add nodes
+        Add to experiment
       </Text>
-      <Text size="xs" c="dimmed">
-        Drag one onto the whiteboard.
-      </Text>
-      {NODE_PALETTE.map((item) => (
+      {NODE_PALETTE.map((section) => (
+        <Stack key={section.section} gap="xs" mt="xs">
+          <Text size="xs" fw={600} c="dimmed" tt="uppercase" style={{ letterSpacing: '0.04em' }}>
+            {section.section}
+          </Text>
+          {section.items.map((item) => (
         <Paper
           key={item.type}
           withBorder
@@ -61,6 +65,8 @@ function Palette() {
           className="ag-hover-card"
           draggable
           onDragStart={(e) => onDragStart(e, item.type)}
+          onClick={() => item.type === 'block' && appendTask(DEFAULT_DATA.block)}
+          title={item.type === 'block' ? 'Click to append to the flow, or drag' : 'Drag onto the whiteboard'}
           style={{ cursor: 'grab', textAlign: 'center' }}
         >
           <Group gap="xs" justify="center">
@@ -76,10 +82,9 @@ function Palette() {
             <Text size="sm">{item.label}</Text>
           </Group>
         </Paper>
+          ))}
+        </Stack>
       ))}
-      <Text size="xs" c="dimmed" mt="sm">
-        Connect nodes by dragging from a handle. Select a node to edit it on the right.
-      </Text>
     </Stack>
   )
 }
@@ -95,7 +100,32 @@ function FlowCanvas() {
   const nodes = useBuilderStore((s) => s.nodes)
   const storeEdges = useBuilderStore((s) => s.edges)
   // Stored/compiled edges carry no type — apply the rounded smoothstep look to all of them.
-  const edges = useMemo(() => storeEdges.map((e) => ({ ...EDGE_DEFAULTS, ...e })), [storeEdges])
+  // Decision connections get a small plain-English label ("accuracy below 70%").
+  // Labels are render-only; the store keeps raw source/target edges untouched.
+  const edges = useMemo(() => {
+    const nodeById = new Map(nodes.map((n) => [n.id, n]))
+    const branchText = new Map()
+    for (const n of nodes) {
+      if (n.type !== 'branch' || !n.data.condition) continue
+      for (const e of storeEdges) {
+        if (e.source === n.id && nodeById.get(e.target)?.type === 'block') {
+          branchText.set(e.id, `if ${conditionText(n.data.condition)}`)
+        }
+      }
+    }
+    return storeEdges.map((e) => ({
+      ...EDGE_DEFAULTS,
+      ...e,
+      ...(branchText.has(e.id)
+        ? {
+            label: branchText.get(e.id),
+            labelStyle: { fontSize: 11, fill: '#5f6368' },
+            labelBgStyle: { fill: '#fff' },
+            labelShowBg: true,
+          }
+        : null),
+    }))
+  }, [storeEdges, nodes])
   const onNodesChange = useBuilderStore((s) => s.onNodesChange)
   const onEdgesChange = useBuilderStore((s) => s.onEdgesChange)
   const connect = useBuilderStore((s) => s.connect)
@@ -229,7 +259,7 @@ function FlowCanvas() {
             c="dimmed"
             style={{ background: '#fff', padding: '8px 16px', borderRadius: 999, border: '1px solid #e8eaed' }}
           >
-            Drag a Block from the left to start building
+            Add a Task from the left to start building
           </Text>
         </div>
       )}

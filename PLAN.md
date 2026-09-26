@@ -1,223 +1,175 @@
 # PLAN.md — Web-Based Experiment Platform
 
-A step-by-step checklist. Work top to bottom. Tick each box when done.
+Status of the `integration` branch. `[x]` = built and verified, `[~]` = built but has a known
+gap (noted inline), `[ ]` = not started.
 
-**Stack:** Vite + React (JavaScript) · React Router · Mantine · React Flow · Zustand · Zod · Express on Vercel · MongoDB Atlas + Mongoose · JWT Auth · Vercel Blob · Upstash Redis
+**Stack:** Vite 8 + React 19 (JavaScript) · React Router 7 · Mantine 9 · React Flow (@xyflow) ·
+Zustand · Zod · Express 4 on Vercel · MongoDB Atlas + Mongoose 8 · JWT auth · Vercel Blob ·
+Upstash Redis · Groq (AI generation)
 
-**Golden rule:** During a trial, the browser makes **zero network calls**. Load everything first, run offline, upload after.
+**Golden rule:** During a trial, the browser makes **zero network calls**. Load everything
+first, run offline, upload after.
 
 ---
 
 ## Phase 0 — Setup
 
 ### Accounts
-- [ ] GitHub repo created, all teammates added
-- [ ] Vercel account connected to GitHub
-- [ ] MongoDB Atlas free cluster created
-- [ ] Atlas **Network Access** set to `0.0.0.0/0`
-- [ ] Atlas database user created, connection string saved
-- [ ] JWT secret keys (access + refresh) generated and saved
-- [ ] Upstash Redis database created, URL + token saved
-- [ ] (Stretch) Gemini or Claude API key saved
+- [x] GitHub repo + Vercel connected
+- [x] MongoDB Atlas cluster, database user, network access `0.0.0.0/0`
+- [x] JWT secrets (access + refresh) in env
+- [x] Upstash Redis database (URL + token)
+- [x] Vercel Blob token
+- [x] Groq API key (`GROQ_API_KEY`)
 
 ### Repo skeleton
-- [ ] Create `/frontend` with `npm create vite@latest` → React → JavaScript
-- [ ] Create `/backend` with `npm init -y`, add `"type": "module"` to `package.json`
-- [ ] Add `.gitignore` (node_modules, .env) to both folders
-- [ ] Create `.env` in both folders (never commit these)
+- [x] `/backend` ESM (`"type": "module"`), `/frontend` Vite React JS
+- [x] `.gitignore` (node_modules, .env) in both
+- [x] `.env` created in both, never committed
+- [x] `vercel.json` in both (`/api/(.*)` → `api/index.js`; `/run/*` → `run.html`)
 
 ### Install packages
-- [ ] Frontend: `react-router-dom @mantine/core @mantine/hooks @mantine/charts @mantine/notifications @mantine/dropzone @xyflow/react zustand zod`
-- [ ] Backend: `express mongoose cors zod jsonwebtoken bcryptjs @vercel/blob @upstash/redis @upstash/ratelimit dotenv`
+- [x] Frontend: `react-router-dom @mantine/* @xyflow/react zustand zod @vercel/blob recharts gsap lenis`
+- [x] Backend: `express mongoose cors zod jsonwebtoken bcryptjs @vercel/blob @upstash/* groq-sdk dotenv`
 
 ### Deploy "hello world" early
-- [ ] Backend: `api/index.js` exports Express app with a `GET /api/v1/health` route
-- [ ] Backend: `vercel.json` routes `/api/(.*)` → `api/index.js`
-- [ ] Deploy backend as Vercel project (root directory = `backend`)
-- [ ] Deploy frontend as Vercel project (root directory = `frontend`)
-- [ ] Frontend `vercel.json` rewrite added so page refresh doesn't 404
-- [ ] Env vars added in both Vercel project settings
-- [ ] Frontend calls `/api/v1/health` successfully (CORS works)
+- [x] `GET /api/v1/health` live
+- [x] Frontend calls it (CORS configured via `CORS_ORIGIN`)
 
 ---
 
-## Phase 1 — Timing Engine (most important)
+## Phase 1 — Timing Engine (the differentiator)
 
-Build in `/frontend/src/engine`. Pure JavaScript, **no React**.
+Built in `frontend/src/engine`. Pure JavaScript, **no React, no network during trials**.
 
-### Hardcoded test first
-- [ ] Write a hardcoded Stroop experiment as a JSON object
-- [ ] `run.html` + `runtime/main.js` load and start it
-
-### Engine modules
-- [ ] `preloader.js` — load + `img.decode()` all images, decode audio into buffers, show progress bar
-- [ ] `renderer.js` — full-screen Canvas, draw text / images / fixation cross
-- [ ] `scheduler.js` — `requestAnimationFrame` loop, show/hide stimuli on exact frames
-- [ ] `input.js` — capture key/mouse/touch using `event.timeStamp`, ignore key repeats
-- [ ] Reaction time = response `timeStamp` − stimulus onset frame time
-- [ ] `audio.js` — play sounds via Web Audio API with scheduled start
-- [ ] `randomizer.js` — shuffle, counterbalance, max-repeats-in-a-row rule
-- [ ] `flow.js` — walk through blocks/trials, handle branches and loops
-- [ ] `logger.worker.js` — Web Worker that stores trial data off the main thread
-- [ ] `uploader.js` — batch upload between blocks, IndexedDB backup, `sendBeacon` on tab close
-
-### Timing quality
-- [ ] `calibration.js` — measure refresh rate + frame jitter before start
-- [ ] Compute a timing quality score (e.g. 0–100)
-- [ ] Log per trial: intended duration, actual frames shown, dropped frames
-- [ ] Fullscreen request + detect when participant leaves the tab
-
-### Check it
-- [ ] Stroop runs start to finish with no errors
-- [ ] RTs look sensible (roughly 300–1000 ms)
-- [ ] Tested on Chrome, Firefox, Safari, and a phone
+- [x] `preloader.js` — `img.decode()` for every image, `decodeAudioData` for audio, progress bar
+- [x] `renderer.js` — full-window canvas, DPR-aware text, fixation cross
+- [x] `scheduler.js` — single `requestAnimationFrame` loop, ms → whole-frame conversion
+- [x] `input.js` — `event.timeStamp` capture, ignores `event.repeat`, only accepts `validKeys`
+- [x] RT = response `timeStamp` − stimulus onset frame time
+- [x] `audio.js` — shared `AudioContext`, scheduled start, `webkitAudioContext` fallback
+- [x] `randomizer.js` — mulberry32 seeded PRNG, Fisher–Yates, max-repeats-in-a-row, block repetition
+- [x] `flow.js` — generator walking blocks, following branch/loop edges, 500-step loop guard
+- [x] `logger.worker.js` — Web Worker buffer + IndexedDB mirror
+- [x] `uploader.js` — batch flush between blocks, 3 retries, `sendBeacon` on `visibilitychange`/`pagehide`
+- [x] `calibration.js` — ~120 rAF frames → refresh rate, jitter, dropped frames, **0–100 quality score**
+- [x] Per-trial frame log: intended vs actual frames, dropped frames
+- [x] `trackEngagement()` — tab-switch / blur counting
+- [x] `selfcheck.mjs` — runnable assert-based check of the pure logic: `node src/engine/selfcheck.mjs`
+- [x] Cross-browser feature gate (AudioContext / rAF / `indexedDB` / Worker)
 
 ---
 
 ## Phase 2 — Backend + Database
 
 ### Core setup
-- [ ] `config/db.js` — cached Mongoose connection
-- [ ] `app.js` — Express, JSON parser, CORS (frontend URL only), error handler
-- [ ] `middleware/requireAuth.js` — verify JWT access token
-- [ ] `middleware/ownsExperiment.js` — researcher can only touch their own data
-- [ ] `middleware/rateLimit.js` — Upstash limiter on public routes
-- [ ] `middleware/validate.js` — Zod body validation
+- [x] `src/db.js` — cached Mongoose connection
+- [x] `src/app.js` — JSON + `text/plain` (beacon) parsers, CORS, global error handler
+- [x] `src/middleware.js` — `requireAuth`, `ownsExperiment`, `validate(Zod)`, `rateLimit`, `requireObjectId`
+- [x] `src/utils/` — `ApiResponse` envelope, `ApiError`, `asyncHandler`
 
 ### Models
-- [ ] `Experiment` — owner, title, draft JSON, published versions, slug, status
-- [ ] `Session` — experimentId, participantId (UUID), device info, calibration score, status, withdrawCode, excluded flag
-- [ ] `Trial` — sessionId, trial index, condition, stimulus, response, RT, frame data
-- [ ] `Stimulus` — owner, file URL, type, name
-- [ ] Indexes on `sessionId`, `experimentId`, `slug`
+- [x] `User` (bcrypt via pre-save hook, token helpers), `Experiment`, `Session`, `Trial`, `Stimulus`
+- [x] Indexes: `sessionId`, `experimentId`, `owner`, unique `email`, unique `withdrawCode`
+- [x] `slug` unique **partial** index (drafts exempt) + 3-retry publish
+- [x] `minimize: false` on Experiment so an unsaved `draft: {}` survives a publish
 
-### Participant routes (public)
-- [ ] `GET /api/v1/run/:slug`
-- [ ] `POST /api/v1/run/:slug/sessions`
-- [ ] `PATCH /api/v1/run/sessions/:sessionId`
-- [ ] `POST /api/v1/run/sessions/:sessionId/trials`
-- [ ] `POST /api/v1/run/sessions/:sessionId/complete`
-- [ ] `POST /api/v1/run/sessions/:sessionId/beacon` (accepts `text/plain`)
-- [ ] `DELETE /api/v1/run/withdraw/:withdrawCode`
+### Participant routes (public) — 7/7
+- [x] All of `GET /run/:slug`, `POST /run/:slug/sessions`, `PATCH`, `POST /trials`, `POST /complete`, `POST /beacon`, `DELETE /withdraw/:code`
+- [x] Runtime fetches by slug, trial data lands in Atlas
 
-### Connect engine to backend
-- [ ] Runtime fetches experiment by slug instead of hardcoded JSON
-- [ ] Trial data saves to MongoDB and shows up in Atlas
+### Hardening found by live testing
+- [x] Email normalised on register/login (case-variant duplicate → 409)
+- [x] Password length capped (bcrypt DoS), logout verifies the refresh-token hash
+- [x] Trials/complete/PATCH refuse any session that isn't `in_progress` (409)
+- [x] Beacon payload Zod-validated before insert, first-IP rate-limit key
+- [x] Malformed ObjectId params → 404 (never 500)
+- [x] Stimulus `url` must be a Blob URL, `size` capped 50 MB
+- [x] CSV export neutralises formula injection
+- [x] Rate limiting extended to register/login/refresh
 
 ---
 
-## Phase 3 — Researcher Auth + Experiments
-
-- [ ] Sign in / sign up pages (custom auth forms)
-- [ ] Protected routes for dashboard and builder
-- [ ] `api/client.js` attaches JWT access token to every request
-- [ ] `POST /api/v1/auth/register`
-- [ ] `POST /api/v1/auth/login`
-- [ ] `POST /api/v1/auth/refresh`
-- [ ] `POST /api/v1/auth/logout`
-- [ ] `GET /api/v1/auth/me`
-- [ ] `GET /api/v1/experiments`
-- [ ] `POST /api/v1/experiments`
-- [ ] `GET /api/v1/experiments/:id`
-- [ ] `PUT /api/v1/experiments/:id`
-- [ ] `DELETE /api/v1/experiments/:id`
-- [ ] `POST /api/v1/experiments/:id/duplicate`
-- [ ] `POST /api/v1/experiments/:id/publish` (freeze version, random slug)
-- [ ] Dashboard page lists experiments with create / open / delete
+## Phase 3 — Researcher Auth + Experiments — 5/5 auth, 7/7 experiments
+- [x] Sign up / sign in pages, `ProtectedRoute`, session restore via `/auth/me`
+- [x] `api/client.js` attaches the JWT, retries once through a silent refresh, logs out on 401
+- [x] Rotated refresh token persisted (backend invalidates the old one every use)
+- [x] Dashboard: cards, status badge, create / open / duplicate / close / delete, copy participant link, Stroop template start
+- [x] Demo account is a **real database user** (`demo@codyssey.local` / `demo1234`) — the earlier
+      localStorage "demo mode" was revoked because it could never be shared to a phone
+- [x] Envelope unwrapped once in `client.js` so no caller has to know about `data`
 
 ---
 
 ## Phase 4 — Visual Builder
-
-### Schema first
-- [ ] `shared/experimentSchema.js` — Zod schema for the experiment JSON
-- [ ] Copy the same schema into `backend/src/validators`
-
-### Canvas
-- [ ] React Flow canvas with drag-and-drop
-- [ ] Node types: Trial, Block, Branch, Loop, End
-- [ ] Zustand store for nodes, edges, selection
-- [ ] Undo / redo
-
-### Panels
-- [ ] Node inspector — edit text, image, duration, valid keys, correct answer
-- [ ] Randomization panel — shuffle, repeats, counterbalancing
-- [ ] Branch rules — e.g. "if wrong → show feedback"
-
-### Stimuli
-- [ ] `POST /api/v1/stimuli/upload-url`, `POST /api/v1/stimuli`, `GET /api/v1/stimuli`, `DELETE /api/v1/stimuli/:id`
-- [ ] Upload dropzone (browser uploads straight to Vercel Blob)
-- [ ] Stimulus picker inside the node inspector
-
-### Wire it up
-- [ ] `compile.js` — convert graph → experiment JSON
-- [ ] Validate with Zod before saving, show friendly errors
-- [ ] Save button → `PUT /api/experiments/:id`
-- [ ] Preview button — run the experiment locally in a new tab
-- [ ] Publish button → shows shareable participant link + copy button
+- [x] `shared/experimentSchema.js` (Zod) + ported copy in `backend/src/validators/`
+- [x] React Flow canvas: background, zoom, minimap, whiteboard/flow layout
+- [x] Nodes: Start, Block, Branch, Loop, End · Zustand store with undo/redo
+- [x] Panels: node inspector, block editor (trial table), trial form, randomization, branch rules, settings
+- [x] `compile.js` — graph → draft JSON, Zod-validated, node-level error highlighting + warnings for
+      blocks not wired into the chain
+- [x] Toolbar: editable title, undo/redo, save + 30 s autosave when dirty, preview, publish
+- [x] Stimuli: dropzone (direct-to-Blob via `@vercel/blob/client`), library, picker in the node inspector
+- [x] Templates: Stroop, Flanker, Simple RT
+- [ ] Real React Flow drag-from-palette (nodes are added from the toolbar, not dragged)
 
 ---
 
 ## Phase 5 — Results Dashboard
-
-- [ ] `GET /api/v1/results/:experimentId/summary`
-- [ ] `GET /api/v1/results/:experimentId/sessions`
-- [ ] `GET /api/v1/results/:experimentId/sessions/:sessionId`
-- [ ] `PATCH /api/v1/results/:experimentId/sessions/:sessionId` (exclude)
-- [ ] `GET /api/v1/results/:experimentId/export?format=csv|json`
-- [ ] Summary cards — participants, completion rate, mean RT, accuracy
-- [ ] RT by condition chart (Mantine charts)
-- [ ] Participant table with timing quality score + exclude toggle
-- [ ] Auto-refresh every 5 seconds (`usePolling`)
-- [ ] CSV / JSON export button
+- [x] All 5 result routes
+- [x] Summary cards, RT / accuracy / quality-score charts by condition
+- [x] Participant table with timing score, trial drawer, exclude toggle
+- [x] Auto-refresh every 5 s with a live indicator
+- [x] CSV + JSON export (formula-injection safe)
+- [ ] Empty state copy for "no participants yet" on the builder side
 
 ---
 
 ## Phase 6 — Privacy + Ethics
-
-- [ ] Consent screen before experiment (text set by researcher)
-- [ ] Only random UUIDs stored — no names, emails, or IPs
-- [ ] Scrub free-text answers in the browser before upload
-- [ ] Withdraw code shown on the completion screen
-- [ ] Withdraw route deletes the session + all its trials
-- [ ] Every results route checks ownership
-- [ ] Secrets only in env vars, never in frontend code
+- [x] Consent screen with researcher-set text, decline path
+- [x] Random UUID `participantId` only — no names, emails or IPs stored
+- [x] `scrub.js` strips emails / phone numbers / long digit runs from free-text answers client-side
+- [x] 8-char withdraw code on the completion screen + `/run/withdraw` self-service delete
+- [x] Ownership enforced on every results/experiment route
+- [x] Secrets only in env vars; the Groq key never reaches the browser
 
 ---
 
-## Phase 7 — Stretch Goals (only if time allows)
-
-- [ ] Bot detection score — mouse movement, impossible RTs, tab switching
-- [ ] Participant simulator — run fake participants to test branches
-- [ ] Template library — ready-made Stroop, Flanker, N-back tasks
-- [ ] Auto-generated consent / IRB summary
+## Phase 7 — Stretch
+- [x] AI experiment generation, backend-side (Groq) + schema-validated
+- [~] Client wiring: `src/api/ai.js` still posts to `/ai/generate-experiment` with `{ description }`;
+      the real route is `POST /generate` with `{ prompt }` returning `{ draft, valid, errors }`
+- [x] Template library (Stroop, Flanker, Simple RT)
+- [ ] Bot-detection score
+- [ ] Participant simulator
+- [ ] Auto-generated IRB summary
 
 ---
 
 ## Phase 8 — Testing + Polish
-
-- [ ] Full flow: sign up → build → publish → take study on phone → see results
-- [ ] Close the tab mid-experiment → partial data still saved
-- [ ] Slow network test (Chrome DevTools throttling) → timing unaffected
-- [ ] Mobile layout works for participant pages
-- [ ] Loading and error states everywhere
-- [ ] Seed one demo experiment with sample data
-- [ ] README: what it does, how to run locally, env vars list
+- [x] Route-by-route verification against a live backend (80 assertions: happy path, bad body,
+      wrong owner, missing resource, state conflict) — all green. ⚠️ The script is throwaway,
+      not committed; commit it as `backend/test-routes.mjs` if you want it re-runnable
+- [x] Envelope + 404 behaviour re-verified after the refactor
+- [x] Loading / error / empty states on dashboard, builder, results
+- [x] `npm run build` green for both entry points (`index.html`, `run.html`)
+- [x] `vite dev` serves `run.html` for `/run/*` (rewrites only existed on Vercel)
+- [x] Dark landing page with an interactive reaction-time demo (GSAP + Lenis)
+- [~] `frontend/README.md` exists but is the Vite default — rewrite it with the env var list
+      (`VITE_API_URL`, `VITE_DEMO_AUTH`, backend `MONGODB_URI`, `ACCESS_TOKEN_SECRET`,
+      `REFRESH_TOKEN_SECRET`, `UPSTASH_*`, `BLOB_READ_WRITE_TOKEN`, `GROQ_API_KEY`) before demo
+- [ ] Seeded demo experiment with sample participant data
 
 ---
 
-## Phase 9 — Demo Prep
+## Known Gaps (fix before the demo)
 
-- [ ] Final deploy on Vercel, both URLs working
-- [ ] Demo script (under 5 minutes):
-  1. Problem in one sentence
-  2. Build a Stroop task live in the builder
-  3. Judge takes it on their phone via link / QR code
-  4. Show their timing quality score + results updating live
-  5. Show privacy features (anonymous ID, withdraw code)
-- [ ] Short pitch slides
-- [ ] Backup screen recording in case Wi-Fi fails
-- [ ] Each teammate knows which part they explain
+| # | Gap | Fix |
+|---|---|---|
+| 1 | AI modal 404s — client calls `/ai/generate-experiment` | point `api/ai.js` at `/generate`, send `{ prompt }` |
+| 2 | Production Atlas still has the old non-partial `slug_1` index | drop it once: `db.experiments.dropIndex("slug_1")` |
+| 3 | `demo@codyssey.local` has a public password | fine for dev; delete or rotate before deploying |
+| 4 | `main` bundle ~1.5 MB (React Flow + Mantine) | code-split builder/results routes if the demo needs it |
 
 ---
 

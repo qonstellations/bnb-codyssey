@@ -1,4 +1,5 @@
 import { experimentSchema } from '../../shared/experimentSchema.js'
+import { friendlyError } from './format.js'
 
 // Graph model: Start -> Block -> Block -> ... -> End is the MAIN chain (block order = execution
 // order). BranchNode/LoopNode are attached decorations, not part of the main chain — they connect
@@ -8,7 +9,7 @@ import { experimentSchema } from '../../shared/experimentSchema.js'
 function blockNodeToSchema(node) {
   return {
     id: node.id,
-    label: node.data.label ?? 'Untitled block',
+    label: node.data.label ?? 'Untitled task',
     shuffle: node.data.shuffle ?? true,
     maxRepeats: node.data.maxRepeats ?? 2,
     repetitions: node.data.repetitions ?? 1,
@@ -78,7 +79,7 @@ export function compileToExperiment(nodes, edges, settings) {
   const chainedIds = new Set(blocks.map((b) => b.id))
   const warnings = nodes
     .filter((n) => n.type === 'block' && !chainedIds.has(n.id))
-    .map((n) => `Block '${n.data.label || n.id}' is not connected to the chain and will be skipped`)
+    .map((n) => `'${n.data.label || 'A task'}' isn't connected to the flow and will be skipped`)
 
   const result = experimentSchema.safeParse(draft)
   if (result.success) return { data: result.data, errors: [], warnings }
@@ -93,11 +94,13 @@ export function compileToExperiment(nodes, edges, settings) {
         nodeId = blocks.find((b) => b.trials.some((t) => t.id === trialMatch[1]))?.id
       }
     }
-    return {
+    const entry = {
       path: issue.path.length ? issue.path.join('.') : '(root)',
       message: issue.message,
       nodeId,
     }
+    entry.friendly = friendlyError(entry, blocks)
+    return entry
   })
   return { data: null, errors, warnings }
 }

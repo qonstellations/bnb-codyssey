@@ -80,6 +80,31 @@ export const useBuilderStore = create((set, get) => ({
     return id
   },
 
+  // Click-to-add for tasks: splice a new task into the chain just before End
+  // so researchers don't have to drag + wire their first steps by hand.
+  appendTask(data = {}) {
+    const state = get()
+    const endEdge = state.edges.find(
+      (e) => e.target === 'end' && state.nodes.some((n) => n.id === e.source && (n.type === 'block' || n.type === 'start'))
+    )
+    const id = nextId('block')
+    const anchor = state.nodes.find((n) => n.id === endEdge?.source)
+    const position = anchor
+      ? { x: anchor.position.x + 240, y: anchor.position.y }
+      : { x: 240, y: 80 }
+    const nodes = [...state.nodes, { id, type: 'block', position, data }]
+    const edges = endEdge
+      ? [
+          ...state.edges.filter((e) => e.id !== endEdge.id),
+          { id: `${endEdge.source}-${id}`, source: endEdge.source, target: id },
+          { id: `${id}-end`, source: id, target: 'end' },
+        ]
+      : state.edges
+    commit(set, get, { nodes, edges })
+    set({ selectedNodeId: id })
+    return id
+  },
+
   updateNode(id, data) {
     const state = get()
     commit(set, get, {
