@@ -47,7 +47,7 @@ export function trackEngagement() {
   }
 }
 
-async function runTrial(trial, { renderer, scheduler, worker, assets, blockId, trialIndex }) {
+async function runTrial(trial, { renderer, scheduler, assets, blockId, trialIndex }) {
   const fixFrames = scheduler.msToFrames(trial.fixationDuration)
   if (fixFrames > 0) {
     await scheduler.run(fixFrames, () => {
@@ -59,7 +59,7 @@ async function runTrial(trial, { renderer, scheduler, worker, assets, blockId, t
 
   const intendedFrames = scheduler.msToFrames(trial.duration)
   let responded = null
-  const responsePromise = waitForResponse(trial.validKeys, trial.timeout ?? trial.duration).then(
+  const responsePromise = waitForResponse(trial.validKeys, trial.timeoutMs ?? trial.duration).then(
     (r) => {
       responded = r
     }
@@ -90,9 +90,9 @@ async function runTrial(trial, { renderer, scheduler, worker, assets, blockId, t
     }
   }
 
-  if (trial.iti) {
+  if (trial.itiMs) {
     renderer.clear()
-    await wait(trial.iti)
+    await wait(trial.itiMs)
   }
 
   return {
@@ -114,7 +114,14 @@ async function runTrial(trial, { renderer, scheduler, worker, assets, blockId, t
 // Runs the whole experiment: fixation -> stimulus -> response -> feedback -> ITI -> log, per trial.
 export async function runExperiment(
   experiment,
-  { canvas, refreshRate = 60, assets = { images: new Map(), audio: new Map() }, onProgress, onFinish }
+  {
+    canvas,
+    refreshRate = 60,
+    assets = { images: new Map(), audio: new Map() },
+    onProgress,
+    onFinish,
+    onBlockEnd,
+  }
 ) {
   const renderer = new Renderer(canvas, experiment.settings)
   const scheduler = new Scheduler(refreshRate)
@@ -137,7 +144,6 @@ export async function runExperiment(
       const record = await runTrial(trial, {
         renderer,
         scheduler,
-        worker,
         assets,
         blockId: block.id,
         trialIndex,
@@ -148,6 +154,8 @@ export async function runExperiment(
       onProgress?.(trialIndex)
     }
     blockResults.set(block.id, records)
+    // Between-block break screen + upload flush lives in the runtime layer, not here.
+    await onBlockEnd?.(block, records)
   }
 
   renderer.destroy()
