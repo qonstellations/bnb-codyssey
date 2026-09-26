@@ -1,7 +1,8 @@
-# API.md — Full API Specification
+# API.md — Full API Specification (as built)
 
-> **Version:** 1.0 · **Base URL:** `https://&lt;backend&gt;.vercel.app/api/v1`
+> **Version:** 1.1 · **Base URL:** `https://<backend>.vercel.app/api/v1`
 > **Content-Type:** `application/json` unless noted otherwise
+> **30 routes** · reflects the `integration` branch
 
 ---
 
@@ -14,7 +15,8 @@
 - [Participant Runtime](#3-participant-runtime)
 - [Experiments](#4-experiments)
 - [Stimuli](#5-stimuli)
-- [Results](#6-results)
+- [AI Generation](#6-ai-generation)
+- [Results](#7-results)
 
 ---
 
@@ -65,19 +67,34 @@ All **error** responses share this shape:
 | HTTP Status | `code` | When |
 |---|---|---|
 | `400` | `VALIDATION_ERROR` | Request body fails Zod validation |
-| `401` | `UNAUTHORIZED` | Missing or invalid access token |
+| `401` | `UNAUTHORIZED` | Missing/invalid access or refresh token |
 | `403` | `FORBIDDEN` | Authenticated but don't own the resource |
-| `404` | `NOT_FOUND` | Resource doesn't exist |
+| `404` | `NOT_FOUND` | Resource doesn't exist (incl. malformed ObjectId params) |
 | `409` | `CONFLICT` | Action conflicts with current state (e.g. publishing a closed experiment) |
+| `410` | `GONE` | Experiment is closed |
+| `429` | `RATE_LIMITED` | Too many requests |
 | `429` | `RATE_LIMITED` | Too many requests (Upstash) |
+| `502` | `GENERATION_FAILED` | AI provider (Groq) failed |
 | `500` | `INTERNAL_ERROR` | Unexpected server error |
+
+### Rate Limiting
+
+Sliding window of **10 requests / 10 seconds per IP** (Upstash) on every public route plus
+`register` / `login` / `refresh` and AI generation. Keyed on the first entry of
+`x-forwarded-for`. Silently skipped when `UPSTASH_REDIS_REST_URL` is unset (local dev).
+
+### Shared Backend Utilities
+
+`src/utils/` — `ApiResponse` (envelope above), `ApiError` (status + code + field errors),
+`asyncHandler` (async route → error middleware). Every route throws `ApiError` instead of
+hand-rolling `res.status().json()`.
 
 ### ID Formats
 
-- MongoDB `_id` fields → 24-char hex strings
+- MongoDB `_id` fields → 24-char hex strings (malformed → `404`, never `500`)
 - `participantId` → UUID v4 (generated server-side)
-- `withdrawCode` → 8-char alphanumeric (generated server-side)
-- `slug` → 8-char alphanumeric (generated on publish)
+- `withdrawCode` → 8-char base62 alphanumeric (generated server-side)
+- `slug` → 8-char base62 alphanumeric (generated on publish)
 
 ### Pagination
 
@@ -93,15 +110,17 @@ No pagination for v1. List endpoints return all records.
 {
   _id:          ObjectId,          // auto
   name:         String,            // 1–100 chars
-  email:        String,            // unique, lowercase
-  passwordHash: String,            // bcrypt hash (never returned in responses)
-  refreshToken: String | null,     // hashed refresh token (for rotation/invalidation)
+  email:        String,            // unique, lowercase, trimmed
+  password:     String,            // bcrypt hash (never returned in responses)
+  passwordHash: String,            // legacy alias, same value
+  refreshToken: String | null,     // SHA-256 hash of the live refresh token
   createdAt:    Date,              // auto (Mongoose timestamps)
   updatedAt:    Date               // auto (Mongoose timestamps)
 }
 ```
 
 **Indexes:** `{ email: 1 }` (unique)
+**Helpers:** `isPasswordCorrect()`, `generateAccessToken()` (15 min), `generateRefreshToken()` (7 d), `toSafeJSON()`.
 
 ---
 
@@ -127,7 +146,8 @@ No pagination for v1. List endpoints return all records.
 }
 ```
 
-**Indexes:** `{ owner: 1 }`, `{ slug: 1 }` (unique, sparse)
+**Indexes:** `{ owner: 1 }`, `{ slug: 1 }` (unique + **partial** — drafts with no slug are
+exempt, so unlimited drafts can coexist; publish retries 3× on collision)
 
 ---
 
@@ -258,9 +278,9 @@ Create a new researcher account.
 
 | Field | Type | Required | Validation |
 |---|---|---|---|
-| `name` | `string` | yes | 1–100 chars |
-| `email` | `string` | yes | valid email, max 255 chars |
-| `password` | `string` | yes | min 8 chars |
+| `name` | `string` | yes | 1–100 chars, trimmed |
+| `email` | `string` | yes | valid email, max 255 chars, lowercased |
+| `password` | `string` | yes | 8–128 chars |
 
 **Response: `201 Created`**
 
@@ -283,6 +303,7 @@ Create a new researcher account.
 |---|---|---|
 | `400` | `VALIDATION_ERROR` | Missing/invalid fields |
 | `409` | `CONFLICT` | Email already registered |
+| `429` | `RATE_LIMITED` | Too many requests |
 
 ---
 
@@ -325,6 +346,7 @@ Log in with email and password.
 |---|---|---|
 | `400` | `VALIDATION_ERROR` | Missing fields |
 | `401` | `UNAUTHORIZED` | Wrong email or password |
+| `429` | `RATE_LIMITED` | Too many requests |
 
 ---
 
@@ -358,7 +380,9 @@ Exchange a valid refresh token for a new access + refresh token pair. The old re
 | Status | Code | When |
 |---|---|---|
 | `400` | `VALIDATION_ERROR` | Missing refresh token |
+| `401` | `UNAUTHORIZED` | Refresh token doesn't match the stored hash |
 | `401` | `UNAUTHORIZED` | Invalid or expired refresh token |
+| `429` | `RATE_LIMITED` | Too many requests |
 
 ---
 
@@ -391,6 +415,7 @@ Invalidate the refresh token so it can't be used again.
 | Status | Code | When |
 |---|---|---|
 | `400` | `VALIDATION_ERROR` | Missing refresh token |
+| `401` | `UNAUTHORIZED` | Refresh token doesn't match the stored hash |
 
 ---
 
@@ -419,7 +444,8 @@ Get the currently authenticated user's profile.
 
 ## 3. Participant Runtime
 
-Public routes used by the timing engine. All rate-limited.
+Public routes used by the timing engine. All rate-limited (10 req / 10 s / IP).
+All `:sessionId` params are ObjectId-validated — a malformed id returns `404`, not `500`.
 
 ---
 
@@ -481,6 +507,7 @@ Fetch the published experiment JSON so the engine can preload and run offline.
 | Status | Code | When |
 |---|---|---|
 | `404` | `NOT_FOUND` | Slug doesn't exist |
+| `429` | `RATE_LIMITED` | Too many requests |
 | `410` | `GONE` | Experiment is closed (status = `"closed"`) |
 
 ---
@@ -532,7 +559,9 @@ Start a new participant session.
 |---|---|---|
 | `400` | `VALIDATION_ERROR` | Missing/invalid `deviceInfo` |
 | `404` | `NOT_FOUND` | Slug doesn't exist |
+| `429` | `RATE_LIMITED` | Too many requests |
 | `410` | `GONE` | Experiment is closed |
+| `429` | `RATE_LIMITED` | Too many requests |
 
 ---
 
@@ -579,6 +608,7 @@ Update session metadata (calibration results, status change). Only allowed while
 | Status | Code | When |
 |---|---|---|
 | `400` | `VALIDATION_ERROR` | Invalid body or no fields provided |
+| `429` | `RATE_LIMITED` | Too many requests |
 | `404` | `NOT_FOUND` | Session not found |
 | `409` | `CONFLICT` | Session is already completed or abandoned |
 
@@ -653,8 +683,9 @@ Upload a batch of trial data. Called between blocks by the engine.
 | Status | Code | When |
 |---|---|---|
 | `400` | `VALIDATION_ERROR` | Invalid trial data |
+| `429` | `RATE_LIMITED` | Too many requests |
 | `404` | `NOT_FOUND` | Session not found |
-| `409` | `CONFLICT` | Session is already completed |
+| `409` | `CONFLICT` | Session is not `in_progress` (completed or abandoned) |
 
 ---
 
@@ -683,7 +714,7 @@ Mark a session as finished. Sets `completedAt` and returns the withdraw code for
 | Status | Code | When |
 |---|---|---|
 | `404` | `NOT_FOUND` | Session not found |
-| `409` | `CONFLICT` | Session is already completed |
+| `409` | `CONFLICT` | Session is not `in_progress` (completed or abandoned) |
 
 ---
 
@@ -752,6 +783,7 @@ Participant withdraws their data. Deletes the session and all its trials permane
 | Status | Code | When |
 |---|---|---|
 | `404` | `NOT_FOUND` | Invalid withdraw code (no matching session) |
+| `429` | `RATE_LIMITED` | Too many requests |
 
 ---
 
@@ -1044,10 +1076,12 @@ Freeze the current draft as a new published version. Generates a slug on first p
 
 | Status | Code | When |
 |---|---|---|
-| `400` | `VALIDATION_ERROR` | Draft fails experiment schema validation |
 | `404` | `NOT_FOUND` | Experiment not found |
 | `403` | `FORBIDDEN` | Don't own this experiment |
 | `409` | `CONFLICT` | Experiment is closed |
+
+> Draft validation happens **client-side** (`compile.js` + the shared Zod schema) before save,
+> so there is no server-side `400` on publish.
 
 ---
 
@@ -1074,7 +1108,7 @@ Get a pre-signed Vercel Blob upload URL. The frontend uses this to upload the fi
 
 | Field | Type | Required | Validation |
 |---|---|---|---|
-| `filename` | `string` | yes | max 255 chars |
+| `filename` | `string` | yes | 1–255 chars, trimmed |
 | `contentType` | `string` | yes | must start with `image/`, `audio/`, or `video/` |
 
 **Response: `200 OK`** (envelope `data` holds the client token the
@@ -1112,10 +1146,10 @@ Save a stimulus metadata record after the file has been uploaded to Vercel Blob.
 
 | Field | Type | Required | Validation |
 |---|---|---|---|
-| `name` | `string` | yes | max 200 chars |
+| `name` | `string` | yes | 1–200 chars, trimmed |
 | `type` | `string` | yes | `"image"` \| `"audio"` \| `"video"` |
 | `url` | `string` | yes | valid URL, must be a `blob.vercel-storage.com` URL |
-| `size` | `number` | yes | integer, > 0 |
+| `size` | `number` | yes | integer, 1 byte – 50 MB |
 
 **Response: `201 Created`**
 
@@ -1197,7 +1231,67 @@ Delete a stimulus record and its file from Vercel Blob. Owner-only (server check
 
 ---
 
-## 6. Results
+## 6. AI Generation
+
+Turns a plain-English description into a schema-validated experiment draft. The Groq API key
+stays server-side; the model is `llama-3.3-70b-versatile` with a system prompt that pins the
+output to the experiment JSON contract. Rate-limited and owner-authenticated.
+
+---
+
+### `POST /api/v1/generate` 🔒
+
+**Request body:**
+
+```json
+{
+  "prompt": "A flanker task with 40 trials, arrow keys, 20 second response window"
+}
+```
+
+| Field | Type | Required | Validation |
+|---|---|---|---|
+| `prompt` | `string` | yes | 10–2000 chars |
+
+**Response: `200 OK`**
+
+```json
+{
+  "statusCode": 200,
+  "data": {
+    "draft": { "settings": {}, "blocks": [], "branches": [], "loops": [] },
+    "valid": true,
+    "errors": []
+  },
+  "message": "Draft generated",
+  "success": true
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `draft` | `object` | Candidate experiment JSON (goes straight into the builder canvas) |
+| `valid` | `boolean` | Whether the draft passed the shared Zod schema |
+| `errors` | `array` | Zod issues when `valid` is `false` |
+
+**Errors:**
+
+| Status | Code | When |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Prompt missing or < 10 chars |
+| `401` | `UNAUTHORIZED` | Missing/invalid access token |
+| `429` | `RATE_LIMITED` | Too many requests |
+| `502` | `GENERATION_FAILED` | Groq call failed or returned non-JSON |
+
+> ⚠️ **Client not yet wired:** `src/api/ai.js` still calls `/ai/generate-experiment` with
+> `{ description }`. Update it to `request("POST", "/generate", { prompt })` and read
+> `data.draft` / `data.valid`.
+
+---
+
+---
+
+## 7. Results
 
 Read-only data analysis routes plus an exclude toggle. All owner-only.
 
@@ -1205,7 +1299,8 @@ Read-only data analysis routes plus an exclude toggle. All owner-only.
 
 ### `GET /api/v1/results/:experimentId/summary` 👤
 
-Aggregated stats for the experiment. Computed on the fly via MongoDB aggregation pipeline.
+Aggregated stats for the experiment, computed on the fly. Stats cover non-excluded, **completed**
+sessions only; everything else still counts toward `totalSessions`/`abandoned`.
 
 **Path params:**
 
@@ -1427,6 +1522,9 @@ Headers:
 Content-Type: text/csv  (or application/json)
 Content-Disposition: attachment; filename="stroop-task_2026-09-26.csv"
 ```
+
+> CSV values starting with `=`, `+`, `-`, `@`, tab or CR are prefixed with `'` so spreadsheet
+> apps can't execute them as formulas.
 
 **CSV columns:**
 
