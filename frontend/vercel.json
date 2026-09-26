@@ -1,6 +1,0 @@
-{
-  "rewrites": [
-    { "source": "/run/(.*)", "destination": "/run.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
-}

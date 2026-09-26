@@ -1,8 +1,8 @@
 # API.md — Full API Specification (as built)
 
-> **Version:** 1.1 · **Base URL:** `https://<backend>.vercel.app/api/v1`
+> **Version:** 1.1 · **Base URL:** `http://localhost:3001/api/v1` (local dev — no deployed backend)
 > **Content-Type:** `application/json` unless noted otherwise
-> **30 routes** · reflects the `integration` branch
+> **30 routes** · reflects the `integration` branch · deployment is localhost-only, no public URLs
 
 ---
 
@@ -1053,6 +1053,8 @@ Create a copy of an experiment. Copies the current `draft`, resets status to `"d
 ### `POST /api/v1/experiments/:id/publish` 👤
 
 Freeze the current draft as a new published version. Generates a slug on first publish and sets status to `"active"`.
+`participantUrl` is built from `FRONTEND_URL` — set it to `http://<laptop-LAN-IP>:5173` on demo day
+so the link opens on a judge's phone.
 
 **Path params:**
 
@@ -1068,7 +1070,7 @@ Freeze the current draft as a new published version. Generates a slug on first p
 {
   "version": 2,
   "slug": "a8Kp3mNx",
-  "participantUrl": "https://yourapp.vercel.app/run/a8Kp3mNx"
+  "participantUrl": "http://localhost:5173/run/a8Kp3mNx"
 }
 ```
 
@@ -1089,7 +1091,9 @@ Freeze the current draft as a new published version. Generates a slug on first p
 
 ## 5. Stimuli
 
-File management for experiment assets. Upload goes directly from the browser to Vercel Blob — these routes handle the token handoff and metadata records.
+File management for experiment assets. Upload goes directly from the browser to Vercel Blob — these routes
+handle the token handoff and metadata records. Blob is the only remaining external service (storage,
+not deployment); it needs `BLOB_READ_WRITE_TOKEN` in `backend/.env` and fails closed without it.
 
 ---
 

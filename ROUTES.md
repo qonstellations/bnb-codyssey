@@ -1,6 +1,6 @@
 # ROUTES.md — API Routes (as built)
 
-All routes live under `/api/v1`. Base URL: your backend Vercel URL.
+All routes live under `/api/v1`. Base URL: `http://localhost:3001/api/v1` (local dev — no deployed backend).
 
 **Auth legend**
 - 🌐 **Public** — no login, rate-limited (Upstash, 10 req / 10 s / IP)
@@ -63,7 +63,7 @@ The frontend unwraps `.data` once in `src/api/client.js`, so app code always see
 | PUT | `/api/v1/experiments/:id` | 👤 | Save the draft / title / status |
 | DELETE | `/api/v1/experiments/:id` | 👤 | Delete experiment + its sessions + trials |
 | POST | `/api/v1/experiments/:id/duplicate` | 👤 | Copy an experiment (fresh draft, no slug) |
-| POST | `/api/v1/experiments/:id/publish` | 👤 | Freeze a version, create 8-char slug, return link |
+| POST | `/api/v1/experiments/:id/publish` | 👤 | Freeze a version, create 8-char slug, return participant link |
 
 > Closing = `PUT /:id` with `{"status":"closed"}`; there is no `/close` route.
 > `slug` is a **partial** unique index, so any number of unpublished drafts can coexist.
