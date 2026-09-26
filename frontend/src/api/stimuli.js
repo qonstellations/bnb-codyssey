@@ -1,8 +1,6 @@
 import { request } from "./client.js";
-import { isDemo, demoListStimuli } from "./demoBackend.js";
 
 export function listStimuli() {
-  if (isDemo()) return demoListStimuli();
   return request("GET", "/stimuli");
 }
 
