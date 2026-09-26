@@ -31,13 +31,22 @@ const experiment = {
 const visited = [...walkFlow(experiment)].map((b) => b.id)
 assert.deepStrictEqual(visited, ['b1', 'b2'], 'should walk blocks in order')
 
-// Loop guard: infinite loop stops at maxSteps instead of hanging.
-const loopingExperiment = {
-  blocks: [{ id: 'b1', trials: [{}] }],
+// Loop node repeats a block in place for its `repetitions` count.
+const loopExperiment = {
+  blocks: [{ id: 'b1', trials: [{}] }, { id: 'b2', trials: [{}] }],
   branches: [],
-  loops: [{ id: 'l1', from: 'b1', to: 'b1', times: Infinity }],
+  loops: [{ id: 'l1', blockId: 'b1', repetitions: 3 }],
 }
-const loopedVisits = [...walkFlow(loopingExperiment, { maxSteps: 20 })]
-assert.strictEqual(loopedVisits.length, 20, 'loop guard should cap at maxSteps')
+const loopVisits = [...walkFlow(loopExperiment)].map((b) => b.id)
+assert.deepStrictEqual(loopVisits, ['b1', 'b1', 'b1', 'b2'], 'loop should repeat block in place')
+
+// Branch guard: a self-targeting branch that always matches stops at maxSteps instead of hanging.
+const branchLoopExperiment = {
+  blocks: [{ id: 'b1', trials: [{}] }],
+  branches: [{ id: 'br1', from: 'b1', to: 'b1', condition: { metric: 'accuracy', operator: '<', value: 1 } }],
+  loops: [],
+}
+const branchVisits = [...walkFlow(branchLoopExperiment, { getMetrics: () => ({ accuracy: 0 }), maxSteps: 20 })]
+assert.strictEqual(branchVisits.length, 20, 'branch guard should cap at maxSteps')
 
 console.log('engine selfcheck: all assertions passed')
