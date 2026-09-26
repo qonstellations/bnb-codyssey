@@ -6,6 +6,7 @@ import { getToken } from "./client.js";
 // Real backend takes over automatically with a real token.
 
 const KEY = "demoExperiments";
+const PUB_KEY = "demoPublished";
 
 function uid() {
   return `demo_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}`;
@@ -132,11 +133,30 @@ export function demoPublishExperiment(id) {
     updatedAt: new Date().toISOString(),
   };
   write(all);
+  // Published drafts are readable by the participant runtime (run.html) by
+  // slug, so demo links work with no backend running.
+  try {
+    const pub = JSON.parse(localStorage.getItem(PUB_KEY)) ?? {};
+    pub[sl] = { title: all[i].title, draft: all[i].draft };
+    localStorage.setItem(PUB_KEY, JSON.stringify(pub));
+  } catch {
+    // ignore — publish still succeeds, run link just needs the backend
+  }
   return Promise.resolve({
     version,
     slug: sl,
     participantUrl: `${window.location.origin}/run/${sl}`,
   });
+}
+
+// Runtime fallback: fetch a demo-published draft by slug (null if none).
+export function demoGetPublishedDraft(slug) {
+  try {
+    const pub = JSON.parse(localStorage.getItem(PUB_KEY)) ?? {};
+    return pub[slug] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export function demoGetSummary() {

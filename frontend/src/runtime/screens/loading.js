@@ -1,5 +1,6 @@
 import { experimentSchema } from '../../shared/experimentSchema.js'
 import { loadExperiment } from '../../api/run.js'
+import { demoGetPublishedDraft } from '../../api/demoBackend.js'
 import { h, renderScreen } from '../dom.js'
 
 function isFeatureSupported() {
@@ -29,6 +30,14 @@ export async function loadingScreen(root, slug) {
   try {
     data = await loadExperiment(slug)
   } catch (err) {
+    // Demo fallback: a demo-published experiment lives only in this browser's
+    // localStorage, so serve it locally instead of failing when the backend
+    // is unreachable or doesn't know the slug.
+    const demo = demoGetPublishedDraft(slug)
+    if (demo) {
+      const parsed = experimentSchema.safeParse(demo.draft)
+      if (parsed.success) return { title: demo.title ?? 'Experiment', experiment: parsed.data, demo: true }
+    }
     if (err.status === 404) err.kind = 'not_found'
     else if (err.status === 410) err.kind = 'gone'
     else err.kind = 'network'
