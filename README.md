@@ -66,7 +66,7 @@ milliseconds. Safari's epoch-based `event.timeStamp` quirk is normalised explici
 done up front behind a progress bar. The trial itself is a single `requestAnimationFrame` loop.
 Data uploads between blocks and via `sendBeacon` on tab close.
 
-**The participant bundle is ~34 KB gzipped** and contains no React, no Mantine and no charting
+**The participant bundle is ~35 KB gzipped** and contains no React, no Mantine and no charting
 library, because a participant should never be able to download the researcher's application to
 take a study.
 
@@ -89,6 +89,7 @@ The full explanation, with the code, is in
 - One-click publish producing a participant link; every publish freezes an immutable version
 - Live results dashboard — mean RT and accuracy by condition, timing-quality histogram,
   per-participant table with a per-trial drawer
+- Reproducible trial order — every session stores the PRNG seed that produced its shuffle
 - CSV and JSON export, formula-injection safe
 - Undo/redo, 30-second autosave, and an interactive in-app guide
 
@@ -105,8 +106,11 @@ The full explanation, with the code, is in
 - An 8-character withdrawal code and a public self-service deletion route
 
 **Privacy posture:** participants are identified only by a server-generated random UUID. The data
-model has no field for a name, email, IP address or raw user agent. Full detail, including an
-explicit list of known gaps, is in [docs/privacy.md](docs/privacy.md).
+model has no field for a name, email, IP address or raw user agent. Session writes require a
+per-session capability token, so knowing a session's id is not enough to alter it. Participants
+can withdraw with a self-service code, and researchers can erase their account and all derived
+data. Full detail, including an explicit list of known gaps, is in
+[docs/privacy.md](docs/privacy.md).
 
 ## Quickstart
 
@@ -195,8 +199,8 @@ Two applications are built from one Vite project, as separate Rollup inputs:
 
 | Entry | Audience | Payload |
 |---|---|---|
-| `index.html` | researcher app | React 19, Mantine, React Flow, GSAP, charts — ~479 KB gz |
-| `run.html` | participant app | plain JS, hand-rolled DOM helper, no framework — **~34 KB gz** |
+| `index.html` | researcher app | React 19, Mantine, React Flow, GSAP, charts — ~480 KB gz |
+| `run.html` | participant app | plain JS, hand-rolled DOM helper, no framework — **~35 KB gz** |
 
 The separation is the most important structural decision in the project: a participant never
 downloads the researcher's application, and a researcher-side dependency change cannot alter

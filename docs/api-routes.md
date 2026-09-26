@@ -5,6 +5,7 @@ All routes live under `/api/v1`. Base URL: `http://localhost:3001/api/v1` (local
 **Auth legend**
 - 🌐 **Public** — no login, rate-limited (Upstash, 10 req / 10 s / IP)
 - 🔒 **Auth** — needs JWT access token (`Authorization: Bearer <token>`)
+- 🔑 **Session** — needs the per-session `token` returned by `startSession`, in the request body
 - 👤 **Owner** — Auth + researcher must own the experiment
 
 **Envelope** — every success response is `{ statusCode, data, message, success }`; the payload
@@ -38,6 +39,7 @@ For request and response bodies, data models and error semantics, see
 | POST | `/api/v1/auth/refresh` | 🌐 | Swap refresh token for a new rotated pair |
 | POST | `/api/v1/auth/logout` | 🔒 | Invalidate the refresh token (must match) |
 | GET | `/api/v1/auth/me` | 🔒 | Get current user profile |
+| DELETE | `/api/v1/auth/me` | 🔒 | Erase the account and everything derived from it (password re-confirm) |
 
 > All three public auth routes are rate-limited (added after a brute-force review).
 
@@ -48,15 +50,17 @@ For request and response bodies, data models and error semantics, see
 | Method | Route | Auth | What it does |
 |---|---|---|---|
 | GET | `/api/v1/run/:slug` | 🌐 | Get the published experiment JSON (410 if closed) |
-| POST | `/api/v1/run/:slug/sessions` | 🌐 | Start a session → returns `sessionId` + `withdrawCode` |
-| PATCH | `/api/v1/run/sessions/:sessionId` | 🌐 | Update session (calibration, mark abandoned) |
-| POST | `/api/v1/run/sessions/:sessionId/trials` | 🌐 | Upload a batch of trials (max 500) |
-| POST | `/api/v1/run/sessions/:sessionId/complete` | 🌐 | Mark session as finished |
-| POST | `/api/v1/run/sessions/:sessionId/beacon` | 🌐 | Last-chance save on tab close (`text/plain` body) |
+| POST | `/api/v1/run/:slug/sessions` | 🌐 | Start a session → returns `sessionId`, `withdrawCode`, a write `token`, and the `seed` for this run |
+| PATCH | `/api/v1/run/sessions/:sessionId` | 🔑 | Update session (calibration, mark abandoned) |
+| POST | `/api/v1/run/sessions/:sessionId/trials` | 🔑 | Upload a batch of trials (max 500) |
+| POST | `/api/v1/run/sessions/:sessionId/complete` | 🔑 | Mark session as finished, with engagement counts |
+| POST | `/api/v1/run/sessions/:sessionId/beacon` | 🔑 | Last-chance save on tab close (`text/plain` body) |
 | DELETE | `/api/v1/run/withdraw/:withdrawCode` | 🌐 | Delete the session + all its trials |
 
 > `:sessionId` is validated as an ObjectId → malformed ids get `404`, never `500`.
 > Trials/complete/PATCH only act while a session is `in_progress`; anything else is `409`.
+> 🔑 routes require the per-session `token` from `startSession` in the request **body** —
+> possession of the session's ObjectId is not sufficient. Stored only as a SHA-256 hash.
 
 ---
 
@@ -130,4 +134,4 @@ Saved experiment drafts, reusable across experiments. Owner-scoped.
 
 ---
 
-**Total: 34 routes** (33 on routers + `GET /api/v1/health`)
+**Total: 35 routes** (34 on routers + `GET /api/v1/health`)

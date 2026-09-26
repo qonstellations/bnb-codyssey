@@ -71,7 +71,8 @@ Pure JavaScript in `frontend/src/engine/`, no React, no network. See
 - [x] Safari epoch-timestamp normalisation against `performance.timeOrigin`
 - [x] `calibration.js` — ~120 rAF frames → refresh rate, jitter, dropped frames, 0–100 score
 - [x] Measured refresh rate fed into the scheduler for the whole run
-- [x] `randomizer.js` — mulberry32 seeded PRNG, Fisher–Yates, max-repeats-in-a-row, block repetition
+- [x] `randomizer.js` — mulberry32 seeded PRNG, Fisher–Yates, max-repeats-in-a-row, block
+      repetition, and **one seeded stream per session** so the stored seed replays the exact order
 - [x] `flow.js` — generator walking blocks, following branch/loop edges, with a 500-step cycle
       guard and a per-branch fire cap so a "redo practice" rule cannot trap a participant
 - [x] `preloader.js` — `img.decode()` for images, `decodeAudioData` for audio, progress reporting
@@ -112,10 +113,11 @@ Pure JavaScript in `frontend/src/engine/`, no React, no network. See
 - [x] Malformed ObjectId params → 404, never 500
 - [x] Stimulus `url` must be a Blob URL; `size` capped at 50 MB
 - [x] CSV export neutralises formula injection
-- [~] `draft` is `z.any()` on experiment create and update — **it is never validated
-      server-side**. A structurally invalid draft can be published, and every participant then
-      sees "Could not load". Validation currently happens only in the browser.
-      See [P1](#p1--credibility-before-a-reviewer-looks-closely).
+- [~] `draft` is `z.any()` on experiment create and update, so saves are still unvalidated — but
+      `publishExperiment` now calls `validateExperiment()` and refuses with a 400, and publishes
+      the *normalised* draft. A broken draft can no longer reach a participant.
+- [x] `DELETE /auth/me` — account erasure with password confirmation, cascading through
+      Trials → Sessions → Experiments → Templates → Blob objects → Stimuli → User
 
 ### Phase 3 — Auth and experiments
 
@@ -159,7 +161,9 @@ Pure JavaScript in `frontend/src/engine/`, no React, no network. See
 - [x] 8 summary cards, RT / accuracy / timing-quality charts by condition
 - [x] Participant table with timing score, per-trial drawer, exclude toggle, low-quality filter
 - [x] Auto-refresh every 5 s with a live indicator
-- [x] CSV + JSON export, formula-injection safe, 26 columns per trial
+- [x] CSV + JSON export, formula-injection safe, 31 columns per trial — device,
+      calibration, the published `version`, the shuffle `seed`, engagement counts, and
+      per-trial response/RT/frame data
 - [~] **No inferential statistics.** Means and proportions only — no standard deviation, no SEM,
       no confidence intervals, no paired tests, no effect sizes, no RT trimming or outlier
       rules, no practice-block exclusion, no paradigm-specific scoring (IAT D-score, search
@@ -209,7 +213,7 @@ Full detail, including every known gap, in [privacy.md](privacy.md).
       CSV header and row count, cascade-delete counts. Skips the AI route without a key.
 - [x] `services/normalizeDraft.check.js` — 18 assertions on normalisation, repair triggering and
       `trialTypes` expansion
-- [x] `engine/selfcheck.mjs` — 19 assertions on the pure timing and flow logic
+- [x] `engine/selfcheck.mjs` — 21 assertions on the pure timing and flow logic
 - [x] `shared/templates/templates.check.mjs` — every template compiles and expands to the
       expected trial counts
 - [~] No test framework. These are hand-rolled `assert` scripts, so there is no runner, no
@@ -235,7 +239,7 @@ Full detail, including every known gap, in [privacy.md](privacy.md).
 | # | Item | Why it matters | Size |
 |---|---|---|---|
 | 5 | **A public URL for the demo** | Everything else is invisible to a judge who cannot open the link. Cheapest path is a tunnel — no account, no config. | 5 min |
-| 6 | **Validate drafts server-side on publish** | Right now a malformed draft can be published and breaks every participant who opens it. Gate `publishExperiment` on the existing `validateExperiment()`. | ~10 lines |
+| 6 | ~~Validate drafts server-side on publish~~ | **done** — `publishExperiment` calls `validateExperiment(exp.draft)` and 400s with the first error; it also publishes the *normalised* draft, so participants get defaults filled in |
 | 7 | **Standard deviation, n and SEM in the summary** | A cognitive-science platform reporting a mean with no dispersion is the most exposed gap, and it is what makes the shipped Stroop/Flanker/IAT templates interpretable. Exclude incorrect and no-go trials from the RT mean. | ~20 lines |
 | 8 | **Play audio stimuli** | An entire stimulus modality is advertised in the schema, the builder and the AI catalog but silently does nothing. | ~10 lines |
 | 9 | **Return `meanRt` and `completionRate` from the engine's `getMetrics`** | Two of the three branch metrics are selectable in the UI and always evaluate false, so the feature reads as fake. | ~10 lines |
@@ -250,12 +254,12 @@ Full detail, including every known gap, in [privacy.md](privacy.md).
 | # | Item | Note |
 |---|---|---|
 | 15 | Unique index on `(sessionId, trialIndex)` + upsert | A retried upload batch double-inserts trials, which corrupts the data. Needs a dedupe migration first if any collection already has duplicates. |
-| 16 | Refresh token in an httpOnly cookie, with CORS tightened in the same change | `cors({ origin: '*' })` today. Do these together or auth breaks. |
+| 16 | Refresh token in an httpOnly cookie, with CORS tightened in the same change | CORS is locked to `CORS_ORIGIN`/`FRONTEND_URL` in production but still `'*'` in dev, and a cookie needs an exact origin. Do both together or auth breaks. |
 | 17 | `helmet` + a CSP | Defaults today. The CSP has to permit the Vite dev server and the Blob origin, so test a full participant run afterwards. |
-| 18 | Per-session capability token for `/run/sessions/:id/*` | These routes authenticate on ObjectId possession alone. |
+| 18 | ~~Per-session capability token for `/run/sessions/:id/*`~~ | **done** — a 24-byte token issued at `startSession`, stored as a SHA-256 hash with `select: false`, and required by `requireSessionToken` on every session write |
 | 19 | Pagination on the sessions and export routes | Explicitly absent today. |
 | 20 | Route-level code splitting | The researcher bundle is ~1.55 MB (478 kB gz). Irrelevant on localhost; visible if deployed. |
-| 21 | Store the randomization seed on the session | `createSeededRandom` exists and is deterministic but is never called, so trial order is not reproducible after the fact — a real requirement for replication. |
+| 21 | ~~Store the randomization seed on the session~~ | **done** — the seed is issued at `startSession`, stored on the session, and drives one seeded PRNG stream for the whole run, so the exact trial order replays |
 | 22 | A test framework | The hand-rolled `.check.mjs` scripts work but have no runner, coverage or CI. |
 | 23 | Delete `scrub.js`, and either implement or remove the `showProgressBar` setting | Both are validated and stored but never read. |
 | 24 | A real migration instead of the boot-time index self-heal | Correct, but it is a hack that runs on every cold start. |

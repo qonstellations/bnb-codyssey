@@ -35,7 +35,11 @@ The `Session` document is the complete record of a participant. Its entire ident
     screenW, screenH, pixelRatio
   },
   calibration: { refreshRate, jitter, score },
+  engagement: { tabSwitches, blurCount, fullscreenExits },
   status, excluded, withdrawCode,
+  tokenHash,                     // sha256 of the participant's write token, select:false
+  version,                       // which published version this participant ran
+  seed,                          // trial-order PRNG seed, reproduces the shuffle
   startedAt, completedAt,
 }
 ```
@@ -44,6 +48,13 @@ There is **no field for a name, an email address, a phone number, an IP address,
 answer, or a raw user-agent string.** Not "we don't fill it" — the schema has nowhere to put it.
 A `Trial` holds a stimulus, a condition, a response key, a correctness flag, a reaction time and
 a frame-count record. Nothing else.
+
+`engagement` is the one field that describes *behaviour* rather than the device: how many times
+the participant switched tabs, lost window focus, or dropped out of fullscreen during the run.
+These are quality signals — a participant who alt-tabbed through the task produces contaminated
+reaction times, and a researcher needs to be able to see that. It is also behavioural data about
+a person, so it belongs in an ethics disclosure; see
+[Known gaps](#known-gaps).
 
 This is the strongest claim the platform makes, and it is enforced structurally rather than by
 policy.
@@ -93,6 +104,26 @@ The code is 8 characters of `crypto.randomBytes` mapped into a 62-character alph
 unique index. Combined with rate limiting on the route, that is a strong control against
 guessing. It is not a secret in the cryptographic sense, so the code is treated as a capability
 token: the [roadmap](roadmap.md) notes the upgrade path to a longer, single-use code.
+
+## Erasure
+
+A researcher can delete their own account and everything derived from it:
+
+```
+DELETE /api/v1/auth/me      { "password": "…" }
+```
+
+Password confirmation is required, and it returns **403 rather than 401** on a wrong password —
+a 401 would make the client attempt a token refresh and log the user out mid-request. The
+deletion cascades through every collection:
+
+```
+Trials → Sessions → Experiments → Templates → Blob objects → Stimuli → User
+```
+
+Stimulus files are removed from Vercel Blob on a best-effort basis; a Blob failure does not block
+the database deletion. This implements the right to erasure under GDPR Art. 17 for the
+researcher account, complementing the participant-side withdrawal above.
 
 ## Consent
 
@@ -156,11 +187,14 @@ that one cannot read, modify or delete the other's experiment, template or stimu
 | Password storage | bcryptjs, cost 10, via a Mongoose pre-save hook. Input capped at 8–128 chars to bound bcrypt cost against DoS. |
 | Access tokens | JWT, 15-minute expiry, signed with `ACCESS_TOKEN_SECRET`. |
 | Refresh tokens | JWT, 7-day expiry, **rotated on every use**. Only the SHA-256 hash is stored server-side, so a database read cannot recover a usable token. Replay of a spent token is rejected. |
+| Participant write tokens | A participant's session writes (calibration, trials, complete) require a 24-byte token issued once at `startSession` and stored only as a SHA-256 hash, `select: false`. Possession of a session's ObjectId is no longer sufficient to write to it. |
 | Silent refresh | the API client retries once through `/auth/refresh` on a 401, then logs out. |
 | Secrets | environment variables only; `backend/.gitignore` excludes `*.env` and nothing else in the tree is tracked. `GROQ_API_KEY` never reaches the browser — generation is server-side. |
 | Rate limiting | Upstash Redis sliding window, 10 requests / 10 seconds per IP, on all public routes plus register/login/refresh. |
 | Input validation | Zod on every mutating request body, with per-issue messages and length caps. |
 | Object-level authorisation | `ownsExperiment` middleware returns 403 for another researcher's experiment; template routes return 404 so ids are not probeable. |
+| CORS | Locked to `CORS_ORIGIN` (comma-separated) or `FRONTEND_URL` when `NODE_ENV=production`. The `'*'` fallback applies to local development only. |
+| Response headers | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and HSTS. |
 | Beacon payload | the `sendBeacon` path is Zod-validated before insert and wrapped so it can never throw into the page unload. |
 
 ## Researcher-facing controls
@@ -181,11 +215,11 @@ finds them documented.
 | **No consent record.** Agree/decline is not persisted; there is no consent timestamp or consent-text version. | Cannot prove a participant agreed to the wording they saw. The main IRB blocker. | Stamp `agreedAt` (server-side) and a hash of the published `consentText` onto the session at creation; export both. |
 | **No IRB metadata.** The model has no ethics-approval field, no protocol number, no consent-form version history. | Cannot tie collected data to an approval. | Add an ethics block to `Experiment` and carry it into the export header. |
 | **Withdrawal code is exposed in the sessions API payload.** `getSessions` spreads the whole session document, so a researcher can read a participant's code and delete their data without consent. Not in the CSV export, but in the JSON. | A researcher can override a participant's withdrawal. | Strip `withdrawCode` from all researcher-facing responses. |
-| **No consent-text version history.** Publishing freezes an experiment version, but consent text is not separately versioned. | Editing consent wording mid-study makes earlier sessions ambiguous. | Derive the consent version from the published version number. |
+| **No consent-text version history.** Publishing freezes an experiment version, but consent text is not separately versioned. | Editing consent wording mid-study makes earlier sessions ambiguous. | Sessions record the `version` they ran, which is most of the way there. |
+| **Engagement data is not in the consent text.** `tabSwitches`, `blurCount` and `fullscreenExits` are behavioural data about the participant, newly captured and stored. | Participants are not currently told this is collected. | Add it to the default consent text, and surface it in the results table as a quality filter. |
 | **Tokens live in `localStorage`.** | Exfiltratable by XSS. | Move the refresh token to an httpOnly, SameSite cookie. Requires tightening CORS from `*` at the same time. |
-| **No `helmet`, no CSP, no HSTS.** | Defaults rather than hardening. | `app.use(helmet())` behind a CSP that permits the Vite dev server and Blob origins. |
+| **No `helmet`, no CSP.** Four headers are set by hand (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, HSTS). | Adequate for a JSON API, but there is no Content-Security-Policy. | `app.use(helmet())`, with a CSP that permits the Vite dev server and Blob origins. |
 | **Rate limiting fails open and self-disables.** If `UPSTASH_REDIS_REST_URL` is unset the limiter is skipped, and any limiter error passes the request through. | Anonymous routes are unprotected in a default local setup. | Log a loud warning when the limiter is inactive; consider a fail-closed mode for production. |
-| **Session routes authenticate on ObjectId possession alone.** | An attacker who can guess or obtain a session id could append trials. ObjectIds embed a creation timestamp, so the search space is narrower than 96 bits. | Per-session capability token, issued at `startSession`. |
 | **No idempotency key on trial upload.** A retried batch can double-insert trials, which would corrupt the data. | Duplicate rows on a flaky connection. | Unique index on `(sessionId, trialIndex)` plus an upsert. |
 | **Trial upload is unbounded per session.** Any number of rows can be appended while a session is `in_progress`. | A determined client could inject arbitrary trial data. | Cap rows per session against the published trial count. |
 | **`scrub.js` is dead code.** It exports a `scrubText()` helper for redacting emails and phone numbers from free-text answers, and nothing imports it — the app has no free-text field. | None today; it would be a false reassurance if a free-text field were added later. | Delete it, or wire it up when a free-text question type exists. |
@@ -197,13 +231,15 @@ plan. The three that matter most, in order:
 
 1. **A consent record** — timestamp plus the exact text version shown, stored per session and
    exportable. Without it there is no evidence of informed consent, only evidence of task
-   completion.
+   completion. Sessions now record the published `version` they ran, which narrows this to
+   timestamping the consent event and hashing the text.
 2. **Anonymisation described in the consent text itself** — participants must be told what is
-   collected (device, timing, responses), what is not (name, email, IP), and how to withdraw.
-   The current consent text is researcher-authored free prose with a default; the platform
-   should supply a compliant default that states the specifics.
+   collected (device, timing, responses, and now engagement counts), what is not (name, email,
+   IP), and how to withdraw. The current consent text is researcher-authored free prose with a
+   default; the platform should supply a compliant default that states the specifics.
 3. **Ethics metadata on the experiment** — approval reference and consent version, so a dataset
    can be traced back to the protocol that authorised it.
 
-Everything else — the withdrawal right, the absence of direct identifiers, ownership
-enforcement, the read-only nature of participant records — is already in place.
+Everything else — the participant withdrawal right, researcher account erasure, the absence of
+direct identifiers, capability-scoped session writes, ownership enforcement, and the read-only
+nature of participant records — is already in place.
