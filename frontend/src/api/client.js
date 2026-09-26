@@ -67,7 +67,7 @@ function toError(status, payload) {
  * - Throws a readable Error with `.code` / `.status` from the API envelope
  * - On 401: tries POST /auth/refresh once, retries, else calls onUnauthorized
  */
-export async function request(method, path, body, { retry = true } = {}) {
+async function send(method, path, body, retry) {
   const headers = { "Content-Type": "application/json" };
   if (_token) headers.Authorization = `Bearer ${_token}`;
 
@@ -79,7 +79,7 @@ export async function request(method, path, body, { retry = true } = {}) {
 
   if (res.status === 401 && retry) {
     const newToken = await tryRefresh().catch(() => null);
-    if (newToken) return request(method, path, body, { retry: false });
+    if (newToken) return send(method, path, body, false);
     if (_onUnauthorized) {
       try {
         await _onUnauthorized();
@@ -88,13 +88,31 @@ export async function request(method, path, body, { retry = true } = {}) {
       }
     }
   }
+  return res;
+}
 
+export async function request(method, path, body, { retry = true } = {}) {
+  const res = await send(method, path, body, retry);
   if (res.status === 204) return null;
 
   const data = await res.json().catch(() => null);
   if (!res.ok) throw toError(res.status, data);
   // Backend wraps every success as ApiResponse { statusCode, data, message, success } — hand callers the payload.
   return data && typeof data === "object" && "success" in data && "data" in data ? data.data : data;
+}
+
+/** GET an authenticated file and hand it to the browser as a download. */
+export async function download(path, fallbackName = "download") {
+  const res = await send("GET", path, undefined, true);
+  if (!res.ok) throw toError(res.status, await res.json().catch(() => null));
+  const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement("a"), { href: url, download: name });
+  document.body.append(a); // Firefox ignores clicks on detached links
+  a.click();
+  a.remove();
+  // Revoking synchronously can cancel the download in Safari/Firefox.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 export const apiBase = BASE;

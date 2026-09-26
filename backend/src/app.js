@@ -16,7 +16,8 @@ export const app = express();
 // Production is locked to CORS_ORIGIN (comma-separated) or FRONTEND_URL; '*' is a dev convenience only.
 const allowed = process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? process.env.FRONTEND_URL : '');
 const corsOrigin = allowed ? allowed.split(',').map((o) => o.trim()) : '*';
-app.use(cors({ origin: corsOrigin }));
+// Content-Disposition exposed so the Results export can read the download filename.
+app.use(cors({ origin: corsOrigin, exposedHeaders: ['Content-Disposition'] }));
 // ponytail: the few headers a JSON API needs; add helmet if this ever serves HTML.
 app.use((_req, res, next) => {
   res.set({
