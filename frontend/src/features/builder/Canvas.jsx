@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -85,7 +85,13 @@ function Palette() {
 }
 
 function FlowCanvas() {
-  const { screenToFlowPosition } = useReactFlow()
+  const { screenToFlowPosition, fitView } = useReactFlow()
+  const loadId = useBuilderStore((s) => s.loadId)
+  // Refit whenever a whole graph is loaded (AI, template), not just on mount.
+  useEffect(() => {
+    const t = setTimeout(() => fitView({ padding: 0.3, duration: 400 }), 50)
+    return () => clearTimeout(t)
+  }, [loadId, fitView])
   const nodes = useBuilderStore((s) => s.nodes)
   const storeEdges = useBuilderStore((s) => s.edges)
   // Stored/compiled edges carry no type — apply the rounded smoothstep look to all of them.

@@ -8,6 +8,7 @@ const stimulusSchema = z
     }),
     content: z.string().max(1000, "stimulus.content too long (max 1000 chars)").nullable().optional(),
     url: z.string().url("stimulus.url must be a valid URL").nullable().optional(),
+    color: z.string().max(20).nullable().optional(), // text ink colour, overrides settings.textColor
   })
   .superRefine((s, ctx) => {
     if (s.type === "text" && !s.content) {
@@ -32,6 +33,7 @@ const trialSchema = z.object({
   validKeys: z.array(z.string().min(1).max(10)).min(1, "trial needs at least 1 valid key").max(10),
   correctKey: z.string().min(1).max(10).nullable().optional(),
   condition: z.string().min(1, "trial.condition is required").max(100),
+  withhold: z.boolean().optional(), // no-go: not responding is correct, any press is wrong
   feedback: feedbackSchema.optional(),
   timeoutMs: z.number().int().positive().max(60000).nullable().optional(),
   itiMs: z.number().int().min(0).max(10000).nullable().optional(),

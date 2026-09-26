@@ -11,7 +11,7 @@ import {
   publishExperiment,
   updateExperiment,
 } from '../api/experiments.js'
-import { sampleStroop } from '../shared/sampleStroop.js'
+import TemplateGallery from '../components/TemplateGallery.jsx'
 import LoadingScreen from '../components/LoadingScreen.jsx'
 import ErrorState from '../components/ErrorState.jsx'
 import EmptyState from '../components/EmptyState.jsx'
@@ -128,11 +128,12 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const { data, error, loading, reload } = useApi(listExperiments)
   const [creating, setCreating] = useState(false)
+  const [galleryOpen, setGalleryOpen] = useState(false)
 
-  async function createAndEdit(draft) {
+  async function createAndEdit(draft, title) {
     setCreating(true)
     try {
-      const { experiment } = await createExperiment(draft ? { draft } : {})
+      const { experiment } = await createExperiment(draft ? { draft, title } : {})
       navigate(`/experiments/${experiment._id}/edit`)
     } catch (err) {
       notifications.show({ color: 'red', message: err.message ?? 'Could not create experiment' })
@@ -155,10 +156,21 @@ export default function Dashboard() {
             Build, publish and track your studies.
           </Text>
         </div>
-        <Button size="md" onClick={() => createAndEdit()} loading={creating}>
-          New experiment
-        </Button>
+        <Group>
+          <Button size="md" variant="default" onClick={() => setGalleryOpen(true)}>
+            New from template
+          </Button>
+          <Button size="md" onClick={() => createAndEdit()} loading={creating}>
+            New experiment
+          </Button>
+        </Group>
       </Group>
+
+      <TemplateGallery
+        opened={galleryOpen}
+        onClose={() => setGalleryOpen(false)}
+        onPick={(draft, title) => createAndEdit(draft, title)}
+      />
 
       {data?.experiments.length === 0 ? (
         <EmptyState title="No experiments yet" message="Create one to get started.">
@@ -166,8 +178,8 @@ export default function Dashboard() {
             <Button onClick={() => createAndEdit()} loading={creating}>
               Create your first experiment
             </Button>
-            <Button variant="light" onClick={() => createAndEdit(sampleStroop)} loading={creating}>
-              Start from Stroop template
+            <Button variant="light" onClick={() => setGalleryOpen(true)}>
+              Start from a template
             </Button>
           </Group>
         </EmptyState>
