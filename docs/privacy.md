@@ -36,7 +36,8 @@ The `Session` document is the complete record of a participant. Its entire ident
   },
   calibration: { refreshRate, jitter, score },
   engagement: { tabSwitches, blurCount, fullscreenExits },
-  status, excluded, withdrawCode,
+  status, excluded, withdrawCode,  // select:false — returned to the participant only
+  consent: { agreedAt, textHash }, // server-stamped when the participant agrees
   tokenHash,                     // sha256 of the participant's write token, select:false
   version,                       // which published version this participant ran
   seed,                          // trial-order PRNG seed, reproduces the shuffle
@@ -212,17 +213,13 @@ finds them documented.
 
 | Gap | Impact | Fix |
 |---|---|---|
-| **No consent record.** Agree/decline is not persisted; there is no consent timestamp or consent-text version. | Cannot prove a participant agreed to the wording they saw. The main IRB blocker. | Stamp `agreedAt` (server-side) and a hash of the published `consentText` onto the session at creation; export both. |
 | **No IRB metadata.** The model has no ethics-approval field, no protocol number, no consent-form version history. | Cannot tie collected data to an approval. | Add an ethics block to `Experiment` and carry it into the export header. |
-| **Withdrawal code is exposed in the sessions API payload.** `getSessions` spreads the whole session document, so a researcher can read a participant's code and delete their data without consent. Not in the CSV export, but in the JSON. | A researcher can override a participant's withdrawal. | Strip `withdrawCode` from all researcher-facing responses. |
 | **No consent-text version history.** Publishing freezes an experiment version, but consent text is not separately versioned. | Editing consent wording mid-study makes earlier sessions ambiguous. | Sessions record the `version` they ran, which is most of the way there. |
 | **Engagement data is not in the consent text.** `tabSwitches`, `blurCount` and `fullscreenExits` are behavioural data about the participant, newly captured and stored. | Participants are not currently told this is collected. | Add it to the default consent text, and surface it in the results table as a quality filter. |
 | **Tokens live in `localStorage`.** | Exfiltratable by XSS. | Move the refresh token to an httpOnly, SameSite cookie. Requires tightening CORS from `*` at the same time. |
 | **No `helmet`, no CSP.** Four headers are set by hand (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, HSTS). | Adequate for a JSON API, but there is no Content-Security-Policy. | `app.use(helmet())`, with a CSP that permits the Vite dev server and Blob origins. |
 | **Rate limiting fails open and self-disables.** If `UPSTASH_REDIS_REST_URL` is unset the limiter is skipped, and any limiter error passes the request through. | Anonymous routes are unprotected in a default local setup. | Log a loud warning when the limiter is inactive; consider a fail-closed mode for production. |
-| **No idempotency key on trial upload.** A retried batch can double-insert trials, which would corrupt the data. | Duplicate rows on a flaky connection. | Unique index on `(sessionId, trialIndex)` plus an upsert. |
 | **Trial upload is unbounded per session.** Any number of rows can be appended while a session is `in_progress`. | A determined client could inject arbitrary trial data. | Cap rows per session against the published trial count. |
-| **`scrub.js` is dead code.** It exports a `scrubText()` helper for redacting emails and phone numbers from free-text answers, and nothing imports it — the app has no free-text field. | None today; it would be a false reassurance if a free-text field were added later. | Delete it, or wire it up when a free-text question type exists. |
 
 ## What an IRB submission would still need
 
