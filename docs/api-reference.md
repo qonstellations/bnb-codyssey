@@ -1302,19 +1302,51 @@ key stays server-side. Owner-authenticated and rate-limited.
 
 ### `POST /api/v1/generate` 🔒
 
+Two explicit steps, chosen by the client — the server never decides on its own whether to ask:
+
+1. `step: "questions"` → 1–3 multiple-choice questions about what the description leaves open
+   (task choice when unclear or unsupported, length, practice/retry, feedback, pace). Always
+   returns at least one question (a fixed fallback set if the model gives none).
+2. `step: "draft"` (default) → a recipe of template-library blocks with tunable knobs. Send the
+   answered questions; to edit an earlier result send it back as `previous` with a `refinement`.
+
 **Request body:**
 
 ```json
 {
-  "prompt": "A Stroop task, then Go / No-Go. Repeat practice if accuracy is below 80%."
+  "step": "draft",
+  "prompt": "A Stroop task, then Go / No-Go. Repeat practice if accuracy is below 80%.",
+  "answers": [{ "question": "About how long should the main task be?", "answer": "About 60 trials" }]
 }
 ```
 
 | Field | Type | Required | Validation |
 |---|---|---|---|
+| `step` | `string` | no | `"questions"` or `"draft"` (default) |
 | `prompt` | `string` | yes | 10–2000 chars |
+| `answers` | `{question, answer}[]` | no | ≤ 5, each string ≤ 500 chars |
+| `previous` | `{steps, retries}` | no | A recipe from an earlier `draft` response; used with `refinement` |
+| `refinement` | `string` | no | 1–1000 chars, e.g. `"add Go / No-Go at the end"` |
+| `fresh` | `boolean` | no | `true` skips the cache (Regenerate) |
 
-**Response: `200 OK`**
+**Response (`step: "questions"`): `200 OK`**
+
+```json
+{
+  "statusCode": 200,
+  "data": {
+    "kind": "questions",
+    "understood": "A Stroop task with a short practice block followed by the main block.",
+    "questions": [
+      { "id": "q1", "question": "How many total trials should the main Stroop task have?", "options": ["About 20 trials", "About 60 trials", "About 120 trials"] }
+    ]
+  },
+  "message": "Questions ready",
+  "success": true
+}
+```
+
+**Response (`step: "draft"`): `200 OK`**
 
 ```json
 {
@@ -1322,15 +1354,14 @@ key stays server-side. Owner-authenticated and rate-limited.
   "data": {
     "kind": "draft",
     "title": "Stroop + Go/No-Go",
-    "notes": ["Kept each task's practice with feedback."],
+    "notes": ["Main Stroop block set to about 60 trials."],
     "recipe": {
-      "blocks": [
-        { "id": "stroop_practice", "template": "stroop", "block": "practice", "repetitions": 1 },
-        { "id": "stroop_main", "template": "stroop", "block": "main", "repetitions": 1 },
-        { "id": "gng_main", "template": "go-nogo", "block": "main", "repetitions": 1 }
+      "steps": [
+        { "id": "stroop_practice", "task": "stroop", "block": "practice" },
+        { "id": "stroop_main", "task": "stroop", "block": "main", "trials": 60, "feedback": false },
+        { "id": "gng_main", "task": "go-nogo", "block": "main", "responseMs": 600 }
       ],
-      "branches": [{ "from": "stroop_practice", "to": "stroop_practice", "metric": "accuracy", "operator": "<", "value": 0.8 }],
-      "loops": []
+      "retries": [{ "step": "stroop_practice", "below": 0.8 }]
     },
     "valid": true,
     "errors": []
@@ -1342,27 +1373,27 @@ key stays server-side. Owner-authenticated and rate-limited.
 
 | Field | Type | Description |
 |---|---|---|
-| `kind` | `"draft"` | Discriminator |
-| `recipe` | `object \| null` | Library blocks + branches + loops; `null` when `valid` is `false` |
-| `title`, `notes` | `string`, `string[]` | Suggested title; notes on choices and anything the library can't do |
-| `valid` | `boolean` | Whether the recipe only references existing templates/blocks |
-| `errors` | `string[]` | Recipe problems when `valid` is `false` (message `"Draft generated with validation issues"`) |
+| `recipe.steps[]` | `object[]` | Library block (`task`, `block`) plus optional knobs: `trials` (1–500 total; the client converts to block repetitions), `responseMs` (300–5000), `fixationMs` (0–3000, not for Simple RT or 2-back), `feedback`, `label` |
+| `recipe.retries[]` | `object[]` | Repeat `step` when its accuracy is below `below` (0.5–0.95); at most 2 retries at run time |
+| `title`, `notes` | `string`, `string[]` | Suggested title; plain-English notes, including any knob the server clamped into range |
+| `valid` | `boolean` | Whether the recipe only references existing tasks/blocks |
+| `errors` | `string[]` | One plain sentence when `valid` is `false` (raw validator output is logged server-side) |
 
 **Errors:**
 
 | Status | Code | When |
 |---|---|---|
-| `400` | `VALIDATION_ERROR` | Prompt missing or < 10 chars |
+| `400` | `VALIDATION_ERROR` | Prompt missing or < 10 chars, or a malformed field |
 | `401` | `UNAUTHORIZED` | Missing/invalid access token |
 | `429` | `RATE_LIMITED` | Too many requests — also returned (with a "the AI is busy" message) when Groq itself rate-limits us |
 | `502` | `GENERATION_FAILED` | Groq call failed |
 | `503` | `AI_NOT_CONFIGURED` | `GROQ_API_KEY` is not set on the server |
 
-> Responses are cached in-process for 60 min (max 100 entries). Only **valid** recipes are
-> cached, so "Try again" after a bad generation genuinely re-runs the model. The cache is
-> per-process — see [roadmap.md](roadmap.md#p2--engineering-debt-worth-fixing) if you run more
-> than one instance.
-> `src/api/ai.js` is wired to this route.
+> Responses are cached in-process for 60 min (max 100 entries), keyed on the whole request
+> body. Only **valid** recipes are cached, and `fresh: true` skips the cache, so Regenerate
+> genuinely re-runs the model. The cache is per-process — see
+> [roadmap.md](roadmap.md#p2--engineering-debt-worth-fixing) if you run more than one instance.
+> `src/api/ai.js` (`askQuestions`, `draftExperiment`) is wired to this route.
 
 ---
 

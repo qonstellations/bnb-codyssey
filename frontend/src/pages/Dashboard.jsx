@@ -151,16 +151,8 @@ export default function Dashboard() {
 
   // Uncaught on purpose: AiGenerateModal's own try/catch turns a throw here into its error list,
   // so the modal stays open and shows why instead of silently closing on failure.
-  async function onAiGenerated(draft, title, notes) {
+  async function onAiGenerated(draft, title) {
     const { experiment } = await createExperiment({ draft, title })
-    if (notes?.length) {
-      notifications.show({
-        title: 'Experiment generated — review it on the canvas',
-        message: notes.map((n) => `• ${n}`).join('\n'),
-        autoClose: 12000,
-        style: { whiteSpace: 'pre-line' },
-      })
-    }
     navigate(`/experiments/${experiment._id}/edit`)
   }
 

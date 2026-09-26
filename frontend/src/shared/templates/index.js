@@ -243,33 +243,54 @@ export const TEMPLATES = [
 
 const TEMPLATE_BY_ID = Object.fromEntries(TEMPLATES.map((t) => [t.id, t]))
 
-// Expands an AI recipe ({ blocks: [{ id, template, block, repetitions, label? }], branches, loops },
-// checked server-side by checkRecipe) into a draft whose trials are copied verbatim from the library.
+const MAX_REPETITIONS = 100 // experimentSchema block.repetitions max
+
+// Expands an AI recipe ({ steps: [{ id, task, block, trials?, label?, responseMs?, fixationMs?,
+// feedback? }], retries: [{ step, below }] }, checked and clamped server-side by checkRecipe) into
+// a draft whose trials are copied verbatim from the library, with only the knobs applied.
+// Trial count → block repetitions: the actual total is a multiple of the block's unique trials.
 export function composeFromTemplates(recipe) {
-  const used = [...new Set(recipe.blocks.map((b) => b.template))].map((id) => TEMPLATE_BY_ID[id])
-  const blocks = recipe.blocks.map((b) => {
-    const tpl = TEMPLATE_BY_ID[b.template]
-    const src = tpl.draft.blocks.find((x) => x.id === b.block)
+  const used = [...new Set(recipe.steps.map((s) => s.task))].map((id) => TEMPLATE_BY_ID[id])
+  const blocks = recipe.steps.map((s) => {
+    const tpl = TEMPLATE_BY_ID[s.task]
+    const src = tpl.draft.blocks.find((x) => x.id === s.block)
+    const n = src.trials.length
+    const repetitions = s.trials ? Math.min(MAX_REPETITIONS, Math.max(1, Math.round(s.trials / n))) : (src.repetitions ?? 1)
     return {
       ...structuredClone(src),
-      id: b.id,
-      label: b.label ?? (used.length > 1 ? `${tpl.label} · ${src.label}` : src.label),
-      repetitions: b.repetitions ?? 1,
-      trials: src.trials.map((t, n) => ({ ...structuredClone(t), id: `${b.id}_t${n + 1}` })),
+      id: s.id,
+      label: s.label ?? (used.length > 1 ? `${tpl.label} · ${src.label}` : src.label),
+      repetitions,
+      trials: src.trials.map((t, i) => {
+        const trial = { ...structuredClone(t), id: `${s.id}_t${i + 1}` }
+        if (s.responseMs != null) {
+          trial.duration = s.responseMs
+          if (trial.timeoutMs != null) trial.timeoutMs = s.responseMs
+        }
+        if (s.fixationMs != null) trial.fixationDuration = s.fixationMs
+        if (s.feedback === false) delete trial.feedback
+        return trial
+      }),
     }
   })
+  const base = structuredClone(used[0].draft.settings)
   return {
     settings: {
-      ...structuredClone(used[0].draft.settings),
-      instructionsText: used.map((t) => t.draft.settings.instructionsText).join('\n\n'),
+      ...base,
+      // Mixed tasks share one canvas: the smallest template font fits every task's stimuli.
+      fontSize: Math.min(...used.map((t) => t.draft.settings.fontSize ?? base.fontSize)),
+      instructionsText:
+        used.length > 1
+          ? used.map((t) => `${t.label.toUpperCase()}\n${t.draft.settings.instructionsText}`).join('\n\n')
+          : base.instructionsText,
     },
     blocks,
-    branches: recipe.branches.map((br, i) => ({
-      id: `br_${i + 1}`,
-      from: br.from,
-      to: br.to,
-      condition: { metric: br.metric, operator: br.operator, value: br.value },
+    branches: recipe.retries.map((r) => ({
+      id: `br_retry_${r.step}`,
+      from: r.step,
+      to: r.step,
+      condition: { metric: 'accuracy', operator: '<', value: r.below },
     })),
-    loops: recipe.loops.map((l, i) => ({ id: `loop_${i + 1}`, blockId: l.blockId, repetitions: l.repetitions })),
+    loops: [],
   }
 }

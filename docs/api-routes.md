@@ -96,7 +96,7 @@ For request and response bodies, data models and error semantics, see
 
 | Method | Route | Auth | What it does |
 |---|---|---|---|
-| POST | `/api/v1/generate` | 🔒 | Groq picks and combines blocks from the 6 coded templates |
+| POST | `/api/v1/generate` | 🔒 | Groq asks 1–3 questions (`step: "questions"`), then builds a recipe from the 6 coded templates with tunable trial count, timing and feedback (`step: "draft"`) |
 
 > Body: `{ "prompt": "…" }` (10–2000 chars). Returns `{ recipe, title, notes, valid, errors }`.
 > The recipe only references template-library blocks (checked server-side); the client copies
