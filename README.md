@@ -103,7 +103,7 @@ satisfy it. Change the task model in one file and all four follow.
 
 ### API
 
-30 routes under `/api/v1` — see [API.md](API.md) for the full spec and [ROUTES.md](ROUTES.md)
+34 routes under `/api/v1` — see [API.md](API.md) for the full spec and [ROUTES.md](ROUTES.md)
 for the one-page table. All success responses share an `{ statusCode, data, message, success }`
 envelope; the frontend unwraps `data` once, in `api/client.js`.
 
@@ -112,7 +112,7 @@ envelope; the frontend unwraps `data` once, in `api/client.js`.
 | Where | Command | What |
 |---|---|---|
 | backend | `npm run dev` | API with file watching on :3001 |
-| backend | `npm test` | contract test over all 30 routes |
+| backend | `npm test` | contract test over the API surface (except AI, which needs a key) |
 | backend | `npm run seed` | demo experiment + sample participants |
 | frontend | `npm run dev` | Vite dev server on :5173 (researcher app + `/run/*` participant app) |
 | frontend | `npm run build` | both bundles: `index.html` and `run.html` |

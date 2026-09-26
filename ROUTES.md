@@ -85,14 +85,29 @@ The frontend unwraps `.data` once in `src/api/client.js`, so app code always see
 
 | Method | Route | Auth | What it does |
 |---|---|---|---|
-| POST | `/api/v1/generate` | 🔒 | Groq (`llama-3.3-70b`) turns a prompt into a schema-validated draft |
+| POST | `/api/v1/generate` | 🔒 | Groq (`openai/gpt-oss-120b`) turns a prompt into a schema-validated draft |
 
 > Body: `{ "prompt": "…" }` (10–2000 chars). Returns `{ draft, valid, errors }` — the draft is
 > validated server-side against the same Zod schema the builder uses, so a bad generation is
-> reported instead of silently loaded.
-> ⚠️ **Known gap:** the frontend AI modal still calls the old `/ai/generate-experiment` with
-> `{ description }`. Point `src/api/ai.js` at `/generate` and rename the field to `prompt` to
-> close it. See PLAN.md Phase 10.
+> reported instead of silently loaded. The generation runs a clarify step (the model may return
+> 1–5 clarifying questions before designing) and repairs an invalid draft up to twice.
+> `src/api/ai.js` is wired to this route.
+
+---
+
+## Templates
+
+Saved experiment drafts, reusable across experiments. Owner-scoped.
+
+| Method | Route | Auth | What it does |
+|---|---|---|---|
+| GET | `/api/v1/templates` | 🔒 | List my templates (metadata only, newest first) |
+| GET | `/api/v1/templates/:id` | 🔒 | Get one template including its draft |
+| POST | `/api/v1/templates` | 🔒 | Save a draft as a template (`draft` is fully schema-validated) |
+| DELETE | `/api/v1/templates/:id` | 🔒 | Delete a template |
+
+> Capped at 50 templates per researcher → `409` past that.
+> Another researcher's (or a malformed) id is a plain `404`.
 
 ---
 
@@ -108,4 +123,4 @@ The frontend unwraps `.data` once in `src/api/client.js`, so app code always see
 
 ---
 
-**Total: 30 routes** (29 + AI generation)
+**Total: 34 routes** (33 on routers + `GET /api/v1/health`)
