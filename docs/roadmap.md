@@ -158,12 +158,13 @@ Pure JavaScript in `frontend/src/engine/`, no React, no network. See
 ### Phase 5 — Results
 
 - [x] All 5 result routes
-- [x] 8 summary cards, RT / accuracy / timing-quality charts by condition
+- [x] 4 summary cards; thin-line frequency distributions (outlier-robust window centred on the peak) for RT per condition, per-participant accuracy per condition, and timing-quality score
 - [x] Participant table with timing score, per-trial drawer, exclude toggle, low-quality filter
-- [x] Auto-refresh every 5 s with a live indicator
-- [x] CSV + JSON export, formula-injection safe, 31 columns per trial — device,
+- [x] Manual Refresh (no polling); reloads swap data in place without a full-page flash
+- [x] CSV + JSON export, formula-injection safe: `kind=trials` (31 columns per trial — device,
       calibration, the published `version`, the shuffle `seed`, engagement counts, and
-      per-trial response/RT/frame data
+      per-trial response/RT/frame data) or `kind=sessions` (accuracy/meanRt/medianRt per
+      session and per block); `scope=clean` limits either to completed, non-excluded sessions
 - [~] **No inferential statistics.** Means and proportions only — no standard deviation, no SEM,
       no confidence intervals, no paired tests, no effect sizes, no RT trimming or outlier
       rules, no practice-block exclusion, no paradigm-specific scoring (IAT D-score, search
@@ -172,9 +173,9 @@ Pure JavaScript in `frontend/src/engine/`, no React, no network. See
       improvement available. See [P1](#p1--credibility-before-a-reviewer-looks-closely).
 - [~] `meanRt` in the summary averages **all** trials, including incorrect and no-go responses,
       which is not a meaningful decision time.
-- [~] Per-condition charts are aggregated client-side, capped at 50 sessions, and re-fetch on
-      every 5 s poll — roughly 50 full-trial requests every 5 seconds, sustained. Sessions past
-      the cap are silently dropped.
+- [~] Per-condition charts are aggregated client-side, capped at 50 sessions; they re-fetch only
+      when the set of completed, included sessions changes. Sessions past the cap are silently
+      dropped.
 - [ ] No pagination anywhere. `getSummary` and `exportData` load whole tables into memory.
 
 ### Phase 6 — Privacy and ethics

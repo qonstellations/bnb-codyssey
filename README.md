@@ -87,11 +87,14 @@ The full explanation, with the code, is in
   and block repetition
 - Stimulus library with direct-to-Blob upload
 - One-click publish producing a participant link; every publish freezes an immutable version
-- Live results dashboard — mean RT and accuracy by condition, timing-quality histogram,
+- Results dashboard (manual refresh) — frequency-distribution curves for RT and accuracy by condition and for timing quality,
   per-participant table with a per-trial drawer
 - Reproducible trial order — every session stores the PRNG seed that produced its shuffle
-- CSV and JSON export, formula-injection safe
+- CSV and JSON export, formula-injection safe: per-trial rows or a per-session/block summary
+  (accuracy, mean/median RT), either all sessions or completed-and-not-excluded only
 - Undo/redo, 30-second autosave, and an interactive in-app guide
+- True-black dark mode on every page — switch left of the Account button, follows the system
+  setting until flipped, remembered across visits, no white flash on load
 
 **For participants**
 
@@ -102,6 +105,8 @@ The full explanation, with the code, is in
 - Canvas text auto-fitted to the viewport, with the webfont preloaded so glyphs never swap
   mid-trial
 - Preloaded assets with a progress bar, then a fully offline trial run
+- Per-trial feedback — Correct / Incorrect / Too early (pressed during fixation) / Too late
+  (no response in time) — shown on all six built-in templates, not just practice blocks
 - Block intro screens between phases, with practice retries explained in place
 - An 8-character withdrawal code and a public self-service deletion route
 
@@ -250,7 +255,7 @@ frontend/
     shared/             experimentSchema.js · templates/ · clipboard.js
     auth/               AuthContext · ProtectedRoute
 
-docs/                   documentation — see docs/README.md
+docs/                   documentation — architecture, privacy, API reference, roadmap
 ```
 
 ## Scripts
@@ -259,7 +264,7 @@ docs/                   documentation — see docs/README.md
 |---|---|---|
 | `backend` | `npm run dev` | API with file watching on :3001 |
 | `backend` | `npm start` | API, no watching |
-| `backend` | `npm test` | 84-assertion API contract test (~3 min, needs the API running) |
+| `backend` | `npm test` | 87-assertion API contract test (~3 min, needs the API running) |
 | `backend` | `npm run seed` | demo account, experiment and 12 participants |
 | `frontend` | `npm run dev` | Vite dev server on :5173 (researcher app + `/run/*` participant app) |
 | `frontend` | `npm run build` | builds both bundles: `index.html` and `run.html` |
@@ -284,8 +289,9 @@ node frontend/src/shared/templates/templates.check.mjs
 
 `npm test` covers the happy path, invalid bodies, cross-user authorisation (403), missing
 resources (404), malformed ObjectIds (404 rather than 500), state conflicts (409), closed
-experiments (410), refresh-token replay rejection, cross-user isolation, CSV export shape, and
-cascade-delete counts. It skips the AI route when `GROQ_API_KEY` is unset.
+experiments (410), refresh-token replay rejection, cross-user isolation, export shape (trial
+rows and session summaries, both formats, both scopes), and cascade-delete counts. It skips the
+AI route when `GROQ_API_KEY` is unset.
 
 The frontend has no component or integration tests at all.
 
@@ -302,16 +308,25 @@ The remaining work is tracked as [P0 item 2](docs/roadmap.md#p0--demo-blockers).
 
 | Document | Contents |
 |---|---|
-| [docs/README.md](docs/README.md) | Documentation index and conventions |
 | [docs/architecture.md](docs/architecture.md) | System design, the timing engine, the builder compiler, the AI pipeline, data model, and deliberate shortcuts |
 | [docs/privacy.md](docs/privacy.md) | What participant data is collected, anonymisation, consent, withdrawal, security controls, and known gaps |
 | [docs/api-reference.md](docs/api-reference.md) | Full HTTP specification — conventions, error codes, data models, every endpoint |
 | [docs/api-routes.md](docs/api-routes.md) | One-page route table with an auth-level legend |
 | [docs/roadmap.md](docs/roadmap.md) | Build status by phase, prioritised work, demo runbook, and previously-wrong claims |
 
-The experiment format itself is defined by
-[`frontend/src/shared/experimentSchema.js`](frontend/src/shared/experimentSchema.js), which is
-better read than summarised.
+| If you want to… | Read |
+|---|---|
+| Understand the timing claims | [architecture.md § The timing engine](docs/architecture.md#the-timing-engine) |
+| See what data a participant gives you | [privacy.md § What a participant actually discloses](docs/privacy.md#what-a-participant-actually-discloses) |
+| Call the API | [api-routes.md](docs/api-routes.md) for the shape, [api-reference.md](docs/api-reference.md) for the details |
+| Know what is finished and what is not | [roadmap.md](docs/roadmap.md) |
+| Understand the experiment format | [api-reference.md § Data Models](docs/api-reference.md#data-models), or `frontend/src/shared/experimentSchema.js` directly — better read than summarised |
+| Understand the AI generation | [architecture.md § AI experiment generation](docs/architecture.md#ai-experiment-generation) |
+
+**Doc conventions:** every factual claim in `docs/` is checked against the code while written —
+counts (routes, assertions, columns) are counted, not estimated. Known gaps are listed in
+[privacy.md](docs/privacy.md) and [roadmap.md](docs/roadmap.md) rather than omitted; `[x]` / `[~]`
+/ `[ ]` in the roadmap mean built-and-verified, built-with-a-known-gap, and not-started.
 
 ## Stack
 

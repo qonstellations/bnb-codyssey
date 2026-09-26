@@ -1669,9 +1669,9 @@ Toggle the exclude flag on a session. Excluded sessions are omitted from summary
 
 ---
 
-### `GET /api/v1/results/:experimentId/export?format=csv|json` 👤
+### `GET /api/v1/results/:experimentId/export?format=csv|json&kind=trials|sessions&scope=all|clean` 👤
 
-Download all session and trial data as a file. Flat structure — one row/object per trial with session fields denormalized.
+Download session/trial data as a file, in one of two shapes.
 
 **Path params:**
 
@@ -1684,6 +1684,8 @@ Download all session and trial data as a file. Flat structure — one row/object
 | Param | Type | Required | Validation |
 |---|---|---|---|
 | `format` | `string` | yes | `"csv"` or `"json"` |
+| `kind` | `string` | no | `"trials"` (default) or `"sessions"` |
+| `scope` | `string` | no | `"all"` (default) or `"clean"` (completed, non-excluded sessions only) |
 
 **Request:** none
 
@@ -1691,20 +1693,19 @@ Download all session and trial data as a file. Flat structure — one row/object
 
 Headers:
 ```
-Content-Type: text/csv  (or application/json)
-Content-Disposition: attachment; filename="stroop-task_2026-09-26.csv"
+Content-Type: text/csv; charset=utf-8  (or application/json)
+Content-Disposition: attachment; filename="stroop-task_trials_2026-09-26.csv"
 ```
 
 > CSV values starting with `=`, `+`, `-`, `@`, tab or CR are prefixed with `'` so spreadsheet
-> apps can't execute them as formulas.
+> apps can't execute them as formulas. The CSV body is prefixed with a UTF-8 BOM so Excel reads
+> non-ASCII stimulus text correctly.
 
-**CSV columns:**
+**`kind=trials`** (default) — one row per trial, session fields denormalized:
 
 ```
-sessionId,participantId,status,excluded,browser,os,screenW,screenH,pixelRatio,refreshRate,jitter,timingScore,startedAt,completedAt,trialIndex,blockId,condition,stimulusType,stimulusContent,stimulusUrl,response,correct,rt,framesIntended,framesActual,framesDropped
+sessionId,participantId,status,excluded,browser,os,screenW,screenH,pixelRatio,refreshRate,jitter,timingScore,version,seed,tabSwitches,blurCount,fullscreenExits,startedAt,completedAt,trialIndex,blockId,condition,stimulusType,stimulusContent,stimulusUrl,response,correct,rt,framesIntended,framesActual,framesDropped
 ```
-
-**JSON format** (array of flat objects with the same fields as CSV columns):
 
 ```json
 [
@@ -1721,6 +1722,11 @@ sessionId,participantId,status,excluded,browser,os,screenW,screenH,pixelRatio,re
     "refreshRate": 60,
     "jitter": 1.2,
     "timingScore": 94,
+    "version": 3,
+    "seed": 482913,
+    "tabSwitches": 0,
+    "blurCount": 0,
+    "fullscreenExits": 0,
     "startedAt": "2026-09-25T14:30:00.000Z",
     "completedAt": "2026-09-25T14:42:00.000Z",
     "trialIndex": 0,
@@ -1739,10 +1745,38 @@ sessionId,participantId,status,excluded,browser,os,screenW,screenH,pixelRatio,re
 ]
 ```
 
+**`kind=sessions`** — one row per session *and per block* (plus one `blockId: "all"` row per
+session), with accuracy/RT already aggregated:
+
+```
+sessionId,participantId,status,excluded,blockId,trials,scoredTrials,accuracy,meanRt,medianRt,timingScore,startedAt,completedAt,durationSec
+```
+
+```json
+[
+  {
+    "sessionId": "665f1a2b3c4d5e6f7a8b9c0e",
+    "participantId": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "completed",
+    "excluded": false,
+    "blockId": "all",
+    "trials": 12,
+    "scoredTrials": 10,
+    "accuracy": 0.9,
+    "meanRt": 512.4,
+    "medianRt": 498,
+    "timingScore": 94,
+    "startedAt": "2026-09-25T14:30:00.000Z",
+    "completedAt": "2026-09-25T14:42:00.000Z",
+    "durationSec": 720
+  }
+]
+```
+
 **Errors:**
 
 | Status | Code | When |
 |---|---|---|
-| `400` | `VALIDATION_ERROR` | Missing or invalid `format` query param |
+| `400` | `VALIDATION_ERROR` | Missing/invalid `format`, `kind` or `scope` query param |
 | `404` | `NOT_FOUND` | Experiment not found |
 | `403` | `FORBIDDEN` | Don't own this experiment |
