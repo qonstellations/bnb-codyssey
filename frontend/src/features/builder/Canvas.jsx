@@ -138,7 +138,6 @@ function FlowCanvas() {
         deleteKeyCode={null}
         fitView
         colorMode="light"
-        proOptions={{ hideAttribution: true }}
       >
         <Background variant="dots" gap={24} size={1.6} color="#cfccc0" bgColor="#fafaf8" />
         <Controls />
