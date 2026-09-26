@@ -44,8 +44,8 @@ async function tryRefresh() {
   });
   if (!res.ok) return null;
   const data = await res.json().catch(() => null);
-  const token = data?.token ?? data?.accessToken ?? null;
-  const newRefreshToken = data?.refreshToken ?? null;
+  const token = data?.data?.accessToken ?? data?.token ?? data?.accessToken ?? null;
+  const newRefreshToken = data?.data?.refreshToken ?? data?.refreshToken ?? null;
   if (token) setToken(token);
   if (token && _onRefreshed) _onRefreshed(token, newRefreshToken);
   return token;

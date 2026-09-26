@@ -25,6 +25,6 @@ export function goneScreen(root) {
 export function unsupportedBrowserScreen(root) {
   errorScreen(root, {
     title: 'Unsupported browser',
-    message: 'Please open this link in an up-to-date Chrome, Firefox, Safari or Edge.',
+    message: 'Please open this link in an up-to-date modern browser (Chrome, Firefox, Safari, Edge, Brave or similar).',
   })
 }
