@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { Alert, Anchor, Button, Container, Paper, PasswordInput, TextInput, Title } from "@mantine/core";
+import { Alert, PasswordInput, TextInput } from "@mantine/core";
 import { useAuth } from "./AuthContext.jsx";
+import AgShell from "../components/AgShell.jsx";
 
 function SignupPage() {
   const { user, signup } = useAuth();
@@ -29,48 +30,56 @@ function SignupPage() {
   };
 
   return (
-    <Container size={420} my={60}>
-      <Title ta="center">Create an account</Title>
-      <Paper withBorder shadow="sm" p={24} mt={24} radius="md">
-        <form onSubmit={onSubmit}>
-          <TextInput
-            label="Name"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoComplete="name"
-          />
-          <TextInput
-            label="Email"
-            type="email"
-            required
-            mt="md"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-          />
-          <PasswordInput
-            label="Password"
-            required
-            mt="md"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-          />
-          {error && (
-            <Alert color="red" mt="md">
-              {error}
-            </Alert>
-          )}
-          <Button fullWidth mt="xl" type="submit" loading={submitting}>
-            Sign up
-          </Button>
-        </form>
-      </Paper>
-      <Anchor component={Link} to="/login" display="block" ta="center" mt="md">
-        Have an account? Log in
-      </Anchor>
-    </Container>
+    <AgShell
+      navRight={
+        <Link to="/" className="ag-pill ghost">
+          ← Back to home
+        </Link>
+      }
+    >
+      <main className="ag-auth">
+        <h1 className="ag-auth-title ag-split">Create an account</h1>
+        <div className="ag-card ag-auth-card ag-reveal">
+          <form onSubmit={onSubmit}>
+            <TextInput
+              label="Name"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoComplete="name"
+            />
+            <TextInput
+              label="Email"
+              type="email"
+              required
+              mt="md"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+            />
+            <PasswordInput
+              label="Password"
+              required
+              mt="md"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+            {error && (
+              <Alert color="red" mt="md">
+                {error}
+              </Alert>
+            )}
+            <button type="submit" className="ag-pill" style={{ marginTop: 28 }} disabled={submitting}>
+              {submitting ? "…" : "Sign up"}
+            </button>
+          </form>
+        </div>
+        <p className="ag-auth-alt ag-reveal">
+          Have an account? <Link to="/login">Log in</Link>
+        </p>
+      </main>
+    </AgShell>
   );
 }
 

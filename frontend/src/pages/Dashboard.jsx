@@ -8,6 +8,7 @@ import {
   deleteExperiment,
   duplicateExperiment,
   listExperiments,
+  publishExperiment,
   updateExperiment,
 } from '../api/experiments.js'
 import { sampleStroop } from '../shared/sampleStroop.js'
@@ -43,6 +44,20 @@ function ExperimentCard({ experiment, onChanged }) {
     notifications.show({ message: 'Participant link copied' })
   }
 
+  function confirmPublish() {
+    openConfirmModal({
+      title: 'Publish experiment?',
+      message: `"${experiment.title}" goes live with its last saved draft at a public participant link.`,
+      confirmLabel: 'Publish',
+      confirmColor: 'blue',
+      onConfirm: () =>
+        runAction(async () => {
+          const { participantUrl } = await publishExperiment(experiment._id)
+          notifications.show({ color: 'green', title: 'Published', message: participantUrl })
+        }),
+    })
+  }
+
   function confirmDelete() {
     openConfirmModal({
       title: 'Delete experiment?',
@@ -52,10 +67,12 @@ function ExperimentCard({ experiment, onChanged }) {
   }
 
   return (
-    <Card withBorder padding="lg" radius="md">
+    <Card padding="xl" className="ag-hover-card">
       <Stack gap="xs">
         <Group justify="space-between">
-          <Text fw={600}>{experiment.title}</Text>
+          <Text fw={500} size="lg" style={{ letterSpacing: '-0.01em' }}>
+            {experiment.title}
+          </Text>
           <Badge color={STATUS_COLOR[experiment.status] ?? 'gray'}>{experiment.status}</Badge>
         </Group>
         <Text size="sm" c="dimmed">
@@ -63,7 +80,6 @@ function ExperimentCard({ experiment, onChanged }) {
         </Text>
         <Group justify="space-between" mt="sm">
           <Button
-            variant="light"
             size="xs"
             onClick={() => navigate(`/experiments/${experiment._id}/edit`)}
           >
@@ -76,9 +92,9 @@ function ExperimentCard({ experiment, onChanged }) {
               </Button>
             </Menu.Target>
             <Menu.Dropdown>
-              <Menu.Item onClick={() => navigate(`/experiments/${experiment._id}/edit`)}>
-                Edit
-              </Menu.Item>
+              {experiment.status !== 'active' && (
+                <Menu.Item color="blue" fw={500} onClick={confirmPublish}>Publish</Menu.Item>
+              )}
               <Menu.Item onClick={() => navigate(`/experiments/${experiment._id}/results`)}>
                 Results
               </Menu.Item>
@@ -130,9 +146,16 @@ export default function Dashboard() {
 
   return (
     <Stack gap="lg" p="lg">
-      <Group justify="space-between">
-        <Title order={2}>Experiments</Title>
-        <Button onClick={() => createAndEdit()} loading={creating}>
+      <Group justify="space-between" align="flex-end" mt="lg" mb="md">
+        <div>
+          <Title order={1} style={{ letterSpacing: '-0.04em' }}>
+            Experiments
+          </Title>
+          <Text c="dimmed" mt={6}>
+            Build, publish and track your studies.
+          </Text>
+        </div>
+        <Button size="md" onClick={() => createAndEdit()} loading={creating}>
           New experiment
         </Button>
       </Group>

@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -8,6 +8,7 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import './flow.css'
 import { Group, Paper, Stack, Text } from '@mantine/core'
 import { useBuilderStore } from './store.js'
 import { nodeTypes, NODE_PALETTE } from './nodes/index.js'
@@ -19,10 +20,14 @@ const DEFAULT_DATA = {
 }
 
 const NODE_DOT = {
-  block: 'var(--mantine-color-teal-6)',
-  branch: 'var(--mantine-color-orange-6)',
-  loop: 'var(--mantine-color-grape-6)',
+  block: '#4285f4',
+  branch: '#fbbc04',
+  loop: '#a142f4',
+  start: '#34a853',
+  end: '#ea4335',
 }
+
+const EDGE_DEFAULTS = { type: 'smoothstep', pathOptions: { borderRadius: 16 } }
 
 function Palette() {
   const onDragStart = (event, type) => {
@@ -52,6 +57,8 @@ function Palette() {
           key={item.type}
           withBorder
           p="xs"
+          radius="xl"
+          className="ag-hover-card"
           draggable
           onDragStart={(e) => onDragStart(e, item.type)}
           style={{ cursor: 'grab', textAlign: 'center' }}
@@ -80,13 +87,24 @@ function Palette() {
 function FlowCanvas() {
   const { screenToFlowPosition } = useReactFlow()
   const nodes = useBuilderStore((s) => s.nodes)
-  const edges = useBuilderStore((s) => s.edges)
+  const storeEdges = useBuilderStore((s) => s.edges)
+  // Stored/compiled edges carry no type — apply the rounded smoothstep look to all of them.
+  const edges = useMemo(() => storeEdges.map((e) => ({ ...EDGE_DEFAULTS, ...e })), [storeEdges])
   const onNodesChange = useBuilderStore((s) => s.onNodesChange)
   const onEdgesChange = useBuilderStore((s) => s.onEdgesChange)
   const connect = useBuilderStore((s) => s.connect)
   const addNode = useBuilderStore((s) => s.addNode)
   const removeNode = useBuilderStore((s) => s.removeNode)
+  const removeEdge = useBuilderStore((s) => s.removeEdge)
   const select = useBuilderStore((s) => s.select)
+  const wrapRef = useRef(null)
+  // Clicked edge/node + where to float its delete pill (px, relative to the canvas wrapper).
+  const [menu, setMenu] = useState(null)
+
+  const menuAt = (event, kind, id) => {
+    const r = wrapRef.current.getBoundingClientRect()
+    setMenu({ kind, id, x: event.clientX - r.left, y: event.clientY - r.top })
+  }
 
   const onDrop = useCallback(
     (event) => {
@@ -104,23 +122,46 @@ function FlowCanvas() {
     event.dataTransfer.dropEffect = 'move'
   }, [])
 
-  const onNodeClick = useCallback((_event, node) => select(node.id), [select])
-  const onPaneClick = useCallback(() => select(null), [select])
+  const onNodeClick = (event, node) => {
+    select(node.id)
+    if (node.id === 'start' || node.id === 'end') setMenu(null)
+    else menuAt(event, 'node', node.id)
+  }
+  const onPaneClick = useCallback(() => {
+    setMenu(null)
+    select(null)
+  }, [select])
+  const onEdgeClick = (event, edge) => menuAt(event, 'edge', edge.id)
+  const deleteSelected = () => {
+    if (menu.kind === 'edge') removeEdge(menu.id)
+    else removeNode(menu.id)
+    setMenu(null)
+  }
 
   const onKeyDown = useCallback(
     (event) => {
+      if (event.key === 'Escape') setMenu(null)
       if (event.key !== 'Delete' && event.key !== 'Backspace') return
+      if (menu?.kind === 'edge') {
+        removeEdge(menu.id)
+        setMenu(null)
+        return
+      }
       const selectedId = useBuilderStore.getState().selectedNodeId
-      if (selectedId && selectedId !== 'start' && selectedId !== 'end') removeNode(selectedId)
+      if (selectedId && selectedId !== 'start' && selectedId !== 'end') {
+        removeNode(selectedId)
+        setMenu(null)
+      }
     },
-    [removeNode]
+    [removeNode, removeEdge, menu]
   )
 
   const hasBlocks = nodes.some((n) => n.type === 'block')
 
   return (
     <div
-      style={{ flex: 1, minHeight: 0, minWidth: 0, background: '#fafaf8', position: 'relative' }}
+      ref={wrapRef}
+      style={{ flex: 1, minHeight: 0, minWidth: 0, background: '#fcfcfd', position: 'relative' }}
       onDrop={onDrop}
       onDragOver={onDragOver}
       onKeyDown={onKeyDown}
@@ -135,14 +176,37 @@ function FlowCanvas() {
         onConnect={connect}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onEdgeClick={onEdgeClick}
+        onMoveStart={() => setMenu(null)}
+        onNodeDragStart={() => setMenu(null)}
         deleteKeyCode={null}
         fitView
+        fitViewOptions={{ padding: 0.3, duration: 400 }}
         colorMode="light"
       >
-        <Background variant="dots" gap={24} size={1.6} color="#cfccc0" bgColor="#fafaf8" />
-        <Controls />
-        <MiniMap pannable zoomable />
+        <Background variant="dots" gap={22} size={1.4} color="#dadce0" bgColor="#fcfcfd" />
+        <Controls showInteractive={false} position="bottom-left" />
+        <MiniMap
+          pannable
+          zoomable
+          nodeBorderRadius={12}
+          nodeColor={(n) => NODE_DOT[n.type] ?? '#bdc1c6'}
+          nodeStrokeWidth={0}
+          maskColor="rgba(241, 243, 244, 0.7)"
+          style={{ width: 180, height: 120 }}
+        />
       </ReactFlow>
+      {menu && (menu.kind === 'edge' ? edges : nodes).some((x) => x.id === menu.id) && (
+        <button
+          type="button"
+          className="flow-edge-delete"
+          style={{ left: menu.x + 10, top: menu.y + 10 }}
+          onClick={deleteSelected}
+          autoFocus
+        >
+          ✕ Delete {menu.kind === 'edge' ? 'line' : nodes.find((n) => n.id === menu.id)?.type ?? 'node'}
+        </button>
+      )}
       {!hasBlocks && (
         <div
           style={{
@@ -154,7 +218,11 @@ function FlowCanvas() {
             pointerEvents: 'none',
           }}
         >
-          <Text size="sm" c="dimmed" style={{ background: '#fafaf8', padding: '4px 12px' }}>
+          <Text
+            size="sm"
+            c="dimmed"
+            style={{ background: '#fff', padding: '8px 16px', borderRadius: 999, border: '1px solid #e8eaed' }}
+          >
             Drag a Block from the left to start building
           </Text>
         </div>

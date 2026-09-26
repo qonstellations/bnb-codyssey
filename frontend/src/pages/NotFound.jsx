@@ -1,17 +1,19 @@
 import { Link } from "react-router-dom";
-import { Button, Container, Text, Title } from "@mantine/core";
+import AgShell from "../components/AgShell.jsx";
 
 function NotFound() {
   return (
-    <Container size="sm" my={80}>
-      <Title ta="center">404 — not found</Title>
-      <Text ta="center" c="dimmed" mt="md">
-        This page doesn&apos;t exist.
-      </Text>
-      <Button component={Link} to="/" display="block" mx="auto" mt="xl" w="fit-content">
-        Go home
-      </Button>
-    </Container>
+    <AgShell>
+      <main className="ag-hero">
+        <h1 className="ag-title ag-split">Lost in space.</h1>
+        <p className="ag-sub ag-reveal">This page doesn&apos;t exist.</p>
+        <div className="ag-ctas ag-reveal">
+          <Link to="/" className="ag-pill">
+            Go home
+          </Link>
+        </div>
+      </main>
+    </AgShell>
   );
 }
 
