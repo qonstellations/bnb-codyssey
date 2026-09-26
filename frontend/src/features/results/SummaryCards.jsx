@@ -35,8 +35,12 @@ export default function SummaryCards({ summary, hasClean }) {
       </Stat>
       <Stat
         label="Mean RT"
-        value={hasClean ? `${Math.round(summary.meanRt)} ms` : '—'}
-        hint="Completed, included sessions"
+        value={hasClean && summary.nRt ? `${Math.round(summary.meanRt)} ms` : '—'}
+        hint={
+          hasClean && summary.nRt
+            ? `SD ${summary.sdRt ?? '—'} · SEM ${summary.semRt ?? '—'} · n=${summary.nRt} correct trials`
+            : 'Correct responses, completed included sessions'
+        }
       />
       <Stat
         label="Accuracy"

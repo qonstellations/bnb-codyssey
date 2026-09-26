@@ -21,10 +21,14 @@ const sessionSchema = new mongoose.Schema({
     default: 'in_progress',
   },
   excluded: { type: Boolean, default: false },
-  withdrawCode: { type: String, required: true, unique: true },
+  withdrawCode: { type: String, required: true, unique: true, select: false }, // participant-only; never in researcher payloads
   tokenHash: { type: String, select: false }, // sha256 of the participant's write token
   version: { type: Number }, // published version this participant ran
   seed: { type: Number }, // trial-order PRNG seed, reproduces the shuffle
+  consent: {
+    agreedAt: { type: Date }, // server-stamped; a session is only created after the participant agrees
+    textHash: { type: String }, // sha256 of the consent text they saw
+  },
   engagement: {
     tabSwitches: { type: Number },
     blurCount: { type: Number },
