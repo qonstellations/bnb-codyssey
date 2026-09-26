@@ -53,7 +53,7 @@ charting library, no animation library**. It has its own 47-line DOM builder (`r
 and its own stylesheet. Nothing in `engine/` imports anything from the rest of the app.
 
 This is the single most important structural decision in the project. A participant loading a
-34 KB gzipped bundle instead of 479 KB means faster trial starts on a cold phone connection,
+35 KB gzipped bundle instead of 480 KB means faster trial starts on a cold phone connection,
 and it removes an entire class of failure — a researcher-side dependency change can never
 alter stimulus timing for a participant mid-study.
 
@@ -374,6 +374,22 @@ requireObjectId  malformed :id → 404, never 500
 asyncHandler     forward rejections to the single global error handler
 ```
 
+Participant session writes use a different chain, because a participant has no account:
+
+```
+rateLimit           10 req / 10 s per IP
+requireObjectId     malformed id → 404
+requireSessionToken verify the per-session write token, 403 if absent or wrong
+validate(Zod)       parse and replace req.body
+```
+
+`startSession` issues that token — 24 random bytes, stored only as a SHA-256 hash on a
+`select: false` field — and hands it to the runtime. Possession of the session's ObjectId is
+therefore not sufficient to write to it, which closes the guessing surface that ObjectIds
+otherwise expose (they embed a creation timestamp). The token travels in the request **body**,
+not a header, because `validate()` strips unknown top-level keys and would drop a header value
+it did not recognise.
+
 Success is always `{ statusCode, data, message, success }`. Errors are always
 `{ statusCode, success, message, errors, error: { code, message } }` from one handler in
 `app.js`. The frontend unwraps `.data` exactly once, in `api/client.js`, so no feature module
@@ -389,36 +405,36 @@ Measured from `npm run build` on the current tree:
 
 | Asset | Raw | Gzip |
 |---|---|---|
-| `run-*.js` — participant runtime + engine | 19.0 kB | **7.6 kB** |
+| `run-*.js` — participant runtime + engine | 18.3 kB | **7.4 kB** |
 | `run-*.css` | 2.9 kB | 1.1 kB |
-| `experimentSchema-*.js` — shared validation | 89.1 kB | 25.8 kB |
-| **Participant total** | **~111 kB** | **~34 kB** |
-| `main-*.js` — researcher app | 1,551 kB | 479 kB |
-| `main-*.css` | 281 kB | 42 kB |
+| `experimentSchema-*.js` — shared validation | 90.1 kB | 26.3 kB |
+| **Participant total** | **~111 kB** | **~35 kB** |
+| `main-*.js` — researcher app | 1,556 kB | 480 kB |
+| `main-*.css` | 282 kB | 42 kB |
 
-The participant payload is the number that matters: ~34 KB gzipped, of which the majority is the
+The participant payload is the number that matters: ~35 KB gzipped, of which the majority is the
 Zod schema used to re-validate the downloaded experiment. The researcher bundle is not
 code-split — fine on localhost, and the obvious place to spend time if this were deployed.
 
 ## Deliberate shortcuts
 
 The codebase uses a `// ponytail:` comment to mark a known shortcut with its upgrade path
-inline. There are nine, and each names a real fix rather than apologising for the code:
+inline. There are ten, and each names a real fix rather than apologising for the code:
 
 | Location | Shortcut | Real fix |
 |---|---|---|
-| `services/groq.js:60` | generation cache is an in-process `Map`, so instances diverge | move to the Upstash Redis already wired for rate limiting |
-| `services/normalizeDraft.js:33` | clamps AI output to text stimuli, since the model cannot reference researcher uploads | teach the generator the uploaded-stimulus library |
-| `controllers/experiments.controller.js:7` | slugs are 8 chars of `randomBytes` | already retries three times on the unique-index collision |
-| `controllers/run.controller.js:32` | withdraw codes likewise | — |
-| `models/Experiment.js:22` | partial `slug` index, needed because drafts store `slug: null` | — |
+| `app.js` | four security headers set by hand instead of `helmet` | `helmet()` once this ever serves HTML |
+| `services/groq.js` | generation cache is an in-process `Map`, so instances diverge | move to the Upstash Redis already wired for rate limiting |
+| `services/normalizeDraft.js` | clamps AI output to text stimuli, since the model cannot reference researcher uploads | teach the generator the uploaded-stimulus library |
+| `controllers/experiments.controller.js` | slugs are 8 chars of `randomBytes` | already retries three times on the unique-index collision |
+| `controllers/run.controller.js` | withdraw codes likewise | — |
+| `models/Experiment.js` | partial `slug` index, needed because drafts store `slug: null` | — |
 | `engine/flow.js` | each branch may fire at most `maxBranchFires` (2) times, then flow falls through | make the cap per-branch configurable if a design needs more retries |
 | `runtime/main.js` | "last block" is an array-position check, not flow-aware, so a branch that ends on an earlier-indexed block shows one extra intro screen | flow-aware detection |
 | `features/results/useConditionAggregates.js` | per-condition stats are rolled up client-side, capped at 50 sessions | a server-side aggregation endpoint |
 | `engine/selfcheck.mjs` | assertion scripts, not a test framework | Vitest |
 
-Two further known limits are documented where they live rather than with this marker: the
-unused seeded PRNG in `engine/randomizer.js` (the seed is never stored on a session, so trial
-order is not reproducible after the fact) and the boot-time slug-index self-heal in `db.js`.
+One further known limit is documented where it lives rather than with this marker: the
+boot-time slug-index self-heal in `db.js`.
 
 The [roadmap](roadmap.md) tracks the rest.

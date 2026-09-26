@@ -2,7 +2,7 @@
 
 > **Version:** 1.1 · **Base URL:** `http://localhost:3001/api/v1` (local dev — no deployed backend)
 > **Content-Type:** `application/json` unless noted otherwise
-> **34 routes** · reflects the `integration` branch · deployment is localhost-only, no public URLs
+> **35 routes** · reflects the `integration` branch · deployment is localhost-only, no public URLs
 
 For a scannable overview see [api-routes.md](api-routes.md). For setup see the
 [root README](../README.md). For system design see [architecture.md](architecture.md).
@@ -176,13 +176,25 @@ exempt, so unlimited drafts can coexist; publish retries 3× on collision)
   },
   status:         String,        // enum: "in_progress" | "completed" | "abandoned"
   excluded:       Boolean,       // default: false
-  withdrawCode:   String,        // 8-char alphanumeric
+  withdrawCode:   String,        // 8-char alphanumeric, participant-facing
+  tokenHash:      String,        // sha256 of the write token; select:false, never serialised
+  version:        Number,        // published version this participant ran
+  seed:           Number,        // trial-order PRNG seed — replays the exact shuffle
+  engagement: {
+    tabSwitches:    Number,      // times the tab was hidden mid-run
+    blurCount:      Number,      // window blur events mid-run
+    fullscreenExits:Number       // fullscreen exits mid-run
+  },
   startedAt:      Date,          // set on creation
   completedAt:    Date | null    // set on complete
 }
 ```
 
 **Indexes:** `{ experimentId: 1 }`, `{ withdrawCode: 1 }` (unique)
+
+`engagement` is submitted with the completion call and is a data-quality signal: a participant
+who alt-tabbed through the task has contaminated reaction times, and the researcher needs to be
+able to see that. It is behavioural data, so it belongs in the consent text.
 
 ---
 
