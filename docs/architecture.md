@@ -191,6 +191,10 @@ On a touch-only device the runtime renders one large button per response key, an
 `pointerdown` reads the button's `data-key` — so a phone can run a keyboard task without a
 keyboard.
 
+The `showProgressBar` setting drives a trial-progress bar that advances once per finished
+trial. It lives in the overlay, not the canvas, so it moving cannot cost a frame during a
+stimulus.
+
 One browser-specific trap is handled explicitly: Safari before 14 reports `event.timeStamp` as
 **epoch milliseconds** while rAF and `performance.now()` are navigation-relative. Subtracting
 them yields reaction times around 1.7 × 10¹² ms. Timestamps above 10¹² are normalised against

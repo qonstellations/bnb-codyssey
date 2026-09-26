@@ -261,7 +261,7 @@ Full detail, including every known gap, in [privacy.md](privacy.md).
 | 20 | Route-level code splitting | The researcher bundle is ~1.55 MB (478 kB gz). Irrelevant on localhost; visible if deployed. |
 | 21 | ~~Store the randomization seed on the session~~ | **done** — the seed is issued at `startSession`, stored on the session, and drives one seeded PRNG stream for the whole run, so the exact trial order replays |
 | 22 | A test framework | The hand-rolled `.check.mjs` scripts work but have no runner, coverage or CI. |
-| 23 | Delete `scrub.js`, and either implement or remove the `showProgressBar` setting | Both are validated and stored but never read. |
+| 23 | Delete `scrub.js` | It is validated and shipped but never imported — the app has no free-text field to scrub. Delete it, or wire it up when a free-text question type exists. |
 | 24 | A real migration instead of the boot-time index self-heal | Correct, but it is a hack that runs on every cold start. |
 
 ## Demo runbook
