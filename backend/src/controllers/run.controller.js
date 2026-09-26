@@ -48,6 +48,8 @@ export const getExperimentBySlug = asyncHandler(async (req, res) => {
   }
 
   const latest = experiment.versions[experiment.versions.length - 1];
+  const consentText = latest?.snapshot?.settings?.consentText ?? '';
+  const consentHash = crypto.createHash('sha256').update(consentText).digest('hex');
   res.json(
     new ApiResponse(
       200,
@@ -78,6 +80,8 @@ export const startSession = asyncHandler(async (req, res) => {
   // Only this browser gets the token; later writes to the session must present it.
   const token = crypto.randomBytes(24).toString('hex');
   const latest = experiment.versions[experiment.versions.length - 1];
+  const consentText = latest?.snapshot?.settings?.consentText ?? '';
+  const consentHash = crypto.createHash('sha256').update(consentText).digest('hex');
   let session;
   for (let i = 0; i < 3; i++) {
     try {
@@ -89,6 +93,8 @@ export const startSession = asyncHandler(async (req, res) => {
         tokenHash: hashSessionToken(token),
         version: latest?.version ?? 0,
         seed: crypto.randomInt(2 ** 31 - 1),
+        // The runtime only starts a session after the consent screen's agree click.
+        consent: { agreedAt: new Date(), textHash: consentHash },
       });
       break;
     } catch (err) {
