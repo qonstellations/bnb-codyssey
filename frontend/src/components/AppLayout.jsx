@@ -36,6 +36,9 @@ function AppLayout() {
             </Menu.Target>
             <Menu.Dropdown>
               <Menu.Label>{user?.email}</Menu.Label>
+              <Menu.Item component={Link} to="/account">
+                Account
+              </Menu.Item>
               <Menu.Item onClick={onLogout}>Log out</Menu.Item>
             </Menu.Dropdown>
           </Menu>
