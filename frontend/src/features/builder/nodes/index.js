@@ -12,8 +12,31 @@ export const nodeTypes = {
   end: EndNode,
 }
 
+// User-facing names only — `type` values are the internal model and stay as-is.
 export const NODE_PALETTE = [
-  { type: 'block', label: 'Block' },
-  { type: 'branch', label: 'Branch' },
-  { type: 'loop', label: 'Loop' },
+  {
+    section: 'Activities',
+    items: [
+      {
+        type: 'block',
+        label: 'Task',
+        hint: 'Run a set of trials, e.g. Practice or Main task.',
+      },
+    ],
+  },
+  {
+    section: 'Flow',
+    items: [
+      {
+        type: 'branch',
+        label: 'Decision',
+        hint: 'Send participants down different paths by their score.',
+      },
+      {
+        type: 'loop',
+        label: 'Repeat',
+        hint: 'Repeat one activity a set number of times.',
+      },
+    ],
+  },
 ]

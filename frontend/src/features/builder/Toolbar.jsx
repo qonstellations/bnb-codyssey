@@ -5,6 +5,8 @@ import { useBuilderStore } from './store.js'
 import { publishExperiment, updateExperiment } from '../../api/experiments.js'
 import { TEMPLATES } from './templates.js'
 import AiGenerateModal from './AiGenerateModal.jsx'
+import JourneyModal from './JourneyModal.jsx'
+import HowItWorksModal from './HowItWorksModal.jsx'
 
 const AUTOSAVE_MS = 30000
 
@@ -26,7 +28,7 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
     if (!data) {
       const first = errors[0]
       if (first?.nodeId) select(first.nodeId)
-      notifications.show({ color: 'red', message: first?.message ?? 'Experiment is invalid' })
+      notifications.show({ color: 'red', message: first?.friendly ?? first?.message ?? 'Experiment is invalid' })
       return null
     }
     for (const warning of warnings ?? []) {
@@ -40,6 +42,8 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
   const [publishResult, setPublishResult] = useState(null)
   const [publishing, setPublishing] = useState(false)
   const [aiOpen, setAiOpen] = useState(false)
+  const [journeyOpen, setJourneyOpen] = useState(false)
+  const [howOpen, setHowOpen] = useState(false)
 
   async function save() {
     const data = compileOrNotify()
@@ -118,6 +122,9 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
           </ActionIcon>
         </Group>
         <Group>
+          <Button variant="subtle" onClick={() => setHowOpen(true)}>
+            How it works
+          </Button>
           <Button variant="light" onClick={() => setAiOpen(true)}>
             Generate with AI
           </Button>
@@ -128,13 +135,19 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
             <Menu.Dropdown>
               {TEMPLATES.map((t) => (
                 <Menu.Item key={t.id} onClick={() => loadFromJson(t.draft)}>
-                  {t.label}
+                  <Text size="sm">{t.label}</Text>
+                  <Text size="xs" c="dimmed">
+                    {t.blurb}
+                  </Text>
                 </Menu.Item>
               ))}
             </Menu.Dropdown>
           </Menu>
-          <Button variant="light" onClick={preview}>
-            Preview
+          <Button variant="light" onClick={() => setJourneyOpen(true)}>
+            Journey
+          </Button>
+          <Button variant="light" onClick={preview} title="See the experiment exactly as a participant would">
+            Preview participant
           </Button>
           <Button variant="default" loading={saving} disabled={!isDirty} onClick={save}>
             {isDirty ? 'Save' : 'Saved ✓'}
@@ -144,6 +157,8 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
       </Group>
 
       <AiGenerateModal opened={aiOpen} onClose={() => setAiOpen(false)} onTitleChange={onTitleChange} />
+      <JourneyModal opened={journeyOpen} onClose={() => setJourneyOpen(false)} />
+      <HowItWorksModal opened={howOpen} onClose={() => setHowOpen(false)} />
 
       <Modal
         opened={publishOpen}

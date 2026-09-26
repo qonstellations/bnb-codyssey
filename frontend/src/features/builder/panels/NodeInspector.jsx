@@ -14,7 +14,7 @@ export default function NodeInspector() {
   return (
     <Stack gap="md">
       <Text size="sm" fw={700}>
-        {!node ? 'Experiment settings' : node.type === 'block' ? 'Block' : node.type === 'branch' ? 'Branch' : node.type === 'loop' ? 'Loop' : 'Info'}
+        {!node ? 'Experiment settings' : node.type === 'block' ? 'Task' : node.type === 'branch' ? 'Decision' : node.type === 'loop' ? 'Repeat' : 'Info'}
       </Text>
       <InspectorBody node={node} updateNode={updateNode} />
     </Stack>
@@ -34,24 +34,15 @@ function InspectorBody({ node, updateNode }) {
 
   if (node.type === 'loop') {
     return (
-      <Stack gap="sm">
-        <Text size="sm">Repeats the connected block in place.</Text>
-        <NumberInput
-          label="Repetitions"
-          min={2}
-          max={100}
-          value={node.data.repetitions ?? 2}
-          onChange={(v) => updateNode(node.id, { repetitions: Number(v) || 2 })}
-        />
-      </Stack>
+      <NumberInput
+        label="Repetitions"
+        min={2}
+        max={100}
+        value={node.data.repetitions ?? 2}
+        onChange={(v) => updateNode(node.id, { repetitions: Number(v) || 2 })}
+      />
     )
   }
 
-  return (
-    <Stack gap="sm">
-      <Text size="sm" c="dimmed">
-        {node.type === 'start' ? 'Start of the experiment.' : 'End of the experiment.'}
-      </Text>
-    </Stack>
-  )
+  return null
 }
