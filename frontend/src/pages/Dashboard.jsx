@@ -13,6 +13,8 @@ import {
 } from '../api/experiments.js'
 import { copyText } from '../shared/clipboard.js'
 import TemplateGallery from '../components/TemplateGallery.jsx'
+import AiGenerateModal from '../features/builder/AiGenerateModal.jsx'
+import GradientButton from '../components/GradientButton.jsx'
 import LoadingScreen from '../components/LoadingScreen.jsx'
 import ErrorState from '../components/ErrorState.jsx'
 import EmptyState from '../components/EmptyState.jsx'
@@ -91,7 +93,7 @@ function ExperimentCard({ experiment, onChanged }) {
           </Button>
           <Menu shadow="md" width={180} disabled={busy}>
             <Menu.Target>
-              <Button variant="subtle" size="xs">
+              <Button variant="default" size="xs">
                 More
               </Button>
             </Menu.Target>
@@ -133,6 +135,7 @@ export default function Dashboard() {
   const { data, error, loading, reload } = useApi(listExperiments)
   const [creating, setCreating] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(false)
+  const [aiOpen, setAiOpen] = useState(false)
 
   async function createAndEdit(draft, title) {
     setCreating(true)
@@ -144,6 +147,21 @@ export default function Dashboard() {
     } finally {
       setCreating(false)
     }
+  }
+
+  // Uncaught on purpose: AiGenerateModal's own try/catch turns a throw here into its error list,
+  // so the modal stays open and shows why instead of silently closing on failure.
+  async function onAiGenerated(draft, title, notes) {
+    const { experiment } = await createExperiment({ draft, title })
+    if (notes?.length) {
+      notifications.show({
+        title: 'Experiment generated — review it on the canvas',
+        message: notes.map((n) => `• ${n}`).join('\n'),
+        autoClose: 12000,
+        style: { whiteSpace: 'pre-line' },
+      })
+    }
+    navigate(`/experiments/${experiment._id}/edit`)
   }
 
   if (loading) return <LoadingScreen />
@@ -161,6 +179,7 @@ export default function Dashboard() {
           </Text>
         </div>
         <Group>
+          <GradientButton onClick={() => setAiOpen(true)}>Generate with AI</GradientButton>
           <Button size="md" variant="default" onClick={() => setGalleryOpen(true)}>
             New from template
           </Button>
@@ -176,13 +195,15 @@ export default function Dashboard() {
         onPick={(draft, title) => createAndEdit(draft, title)}
       />
 
+      <AiGenerateModal opened={aiOpen} onClose={() => setAiOpen(false)} onGenerated={onAiGenerated} />
+
       {data?.experiments.length === 0 ? (
         <EmptyState title="No experiments yet" message="Create one to get started.">
           <Group>
             <Button onClick={() => createAndEdit()} loading={creating}>
               Create your first experiment
             </Button>
-            <Button variant="light" onClick={() => setGalleryOpen(true)}>
+            <Button size="md" variant="default" onClick={() => setGalleryOpen(true)}>
               Start from a template
             </Button>
           </Group>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ActionIcon, Button, Group, Menu, Modal, Stack, Text, TextInput, Textarea } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useBuilderStore } from './store.js'
@@ -6,13 +7,14 @@ import { publishExperiment, updateExperiment } from '../../api/experiments.js'
 import { createTemplate } from '../../api/templates.js'
 import TemplateGallery from '../../components/TemplateGallery.jsx'
 import { openConfirmModal } from '../../components/ConfirmModal.jsx'
-import AiGenerateModal from './AiGenerateModal.jsx'
 import HowItWorksModal from './HowItWorksModal.jsx'
 import { copyText } from '../../shared/clipboard.js'
+import GradientButton from '../../components/GradientButton.jsx'
 
 const AUTOSAVE_MS = 30000
 
 export default function Toolbar({ experimentId, title, onTitleChange }) {
+  const navigate = useNavigate()
   const isDirty = useBuilderStore((s) => s.isDirty)
   const undo = useBuilderStore((s) => s.undo)
   const redo = useBuilderStore((s) => s.redo)
@@ -54,7 +56,6 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
   const [publishOpen, setPublishOpen] = useState(false)
   const [publishResult, setPublishResult] = useState(null)
   const [publishing, setPublishing] = useState(false)
-  const [aiOpen, setAiOpen] = useState(false)
   // First visit to the builder opens the guide once.
   const [howOpen, setHowOpen] = useState(() => {
     try {
@@ -187,7 +188,7 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
 
   return (
     <>
-      <Group justify="space-between" p="sm" style={{ borderBottom: '1px solid var(--mantine-color-gray-3)' }}>
+      <Group justify="space-between" p="sm" style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
         <Group>
           <TextInput
             value={title}
@@ -211,22 +212,26 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
           </Button>
         </Group>
         <Group>
-          <Button variant="subtle" onClick={() => setHowOpen(true)}>
+          <Button variant="default" onClick={() => setHowOpen(true)}>
             How it works
           </Button>
-          <Button variant="light" onClick={() => setAiOpen(true)}>
-            Generate with AI
-          </Button>
+          {/* TODO(enhance-ai): wire this up to an AI pass over the *current* canvas — e.g.
+              suggest missing blocks, retry rules, or fixes. "Generate with AI" (a fresh
+              experiment from a text prompt) moved to the Dashboard; this is intentionally a
+              different, not-yet-built feature. */}
+          <GradientButton variant="variant" disabled title="Coming soon">
+            Enhance with AI
+          </GradientButton>
           <Menu>
             <Menu.Target>
-              <Button variant="subtle">Templates</Button>
+              <Button variant="default">Templates</Button>
             </Menu.Target>
             <Menu.Dropdown>
               <Menu.Item onClick={() => setGalleryOpen(true)}>Browse templates…</Menu.Item>
               <Menu.Item onClick={openSaveTemplate}>Save current as template…</Menu.Item>
             </Menu.Dropdown>
           </Menu>
-          <Button variant="light" onClick={preview} title="See the experiment exactly as a participant would">
+          <Button variant="default" onClick={preview} title="See the experiment exactly as a participant would">
             Preview
           </Button>
           <Button variant="default" loading={saving} disabled={!isDirty} onClick={save}>
@@ -236,7 +241,6 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
         </Group>
       </Group>
 
-      <AiGenerateModal opened={aiOpen} onClose={() => setAiOpen(false)} onTitleChange={onTitleChange} />
       <HowItWorksModal
         opened={howOpen}
         onClose={() => setHowOpen(false)}
@@ -246,7 +250,7 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
         }}
         onOpenAi={() => {
           setHowOpen(false)
-          setAiOpen(true)
+          navigate('/dashboard')
         }}
         onPreview={() => {
           setHowOpen(false)

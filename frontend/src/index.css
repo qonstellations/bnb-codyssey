@@ -83,6 +83,87 @@ body {
   color: var(--app-ink);
 }
 
+/* GradientButton (components/GradientButton.jsx) — a raw-CSS recreation of the animated
+   multi-colour "gradient button" pattern, no extra dependency. `.gradient-btn` is the bold
+   filled look; `.gradient-btn--variant` reuses the same moving gradient as a border instead,
+   with a transparent center that tracks --app-surface/--app-ink so it reads correctly in both
+   light and dark mode without its own dark-mode rules. */
+.gradient-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 22px;
+  border: none;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(90deg, #7c3aed, #ec4899, #3b82f6, #7c3aed);
+  background-size: 300% 100%;
+  animation: gradient-btn-shift 6s linear infinite;
+  box-shadow: 0 4px 16px -4px rgba(124, 58, 237, 0.45);
+  transition: box-shadow 180ms ease-out, transform 150ms ease-out;
+}
+.gradient-btn:hover:not(:disabled) {
+  box-shadow: 0 6px 22px -4px rgba(236, 72, 153, 0.55);
+  transform: translateY(-1px);
+}
+.gradient-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+.gradient-btn:focus-visible {
+  outline: 2px solid var(--app-ink);
+  outline-offset: 2px;
+}
+.gradient-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  animation-play-state: paused;
+  box-shadow: none;
+  transform: none;
+}
+
+.gradient-btn--variant {
+  color: var(--app-ink);
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(var(--app-surface), var(--app-surface)) padding-box,
+    linear-gradient(90deg, #7c3aed, #ec4899, #3b82f6, #7c3aed) border-box;
+  background-size:
+    auto,
+    300% 100%;
+  animation: gradient-btn-shift-border 6s linear infinite;
+  box-shadow: none;
+}
+.gradient-btn--variant:hover:not(:disabled) {
+  box-shadow: 0 4px 18px -6px rgba(124, 58, 237, 0.4);
+}
+
+@keyframes gradient-btn-shift {
+  to {
+    background-position: 300% 0;
+  }
+}
+@keyframes gradient-btn-shift-border {
+  from {
+    background-position: 0 0, 0 0;
+  }
+  to {
+    background-position: 0 0, 300% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gradient-btn,
+  .gradient-btn--variant {
+    animation: none;
+  }
+}
+
 /* Reaction-time pad */
 .rt-pad {
   margin-top: 32px;
