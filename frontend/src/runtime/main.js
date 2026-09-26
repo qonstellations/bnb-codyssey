@@ -21,8 +21,15 @@ import { experimentSchema } from '../shared/experimentSchema.js'
 
 const root = document.getElementById('root')
 
+// Builder → Preview writes the compiled draft here. localStorage, not sessionStorage:
+// a tab opened with window.open doesn't reliably inherit the opener's sessionStorage.
 async function loadPreview() {
-  const raw = sessionStorage.getItem('preview-experiment')
+  let raw = null
+  try {
+    raw = localStorage.getItem('preview-experiment')
+  } catch {
+    // storage blocked — falls through to the "nothing to preview" error
+  }
   const parsed = experimentSchema.safeParse(JSON.parse(raw ?? 'null'))
   if (!parsed.success) {
     const err = new Error('Invalid preview data')
@@ -41,9 +48,10 @@ async function main() {
     return
   }
 
+  // Preview runs from /run.html?preview=1 with no slug — only real runs need one.
   const slugMatch = path.match(/^\/run\/([^/]+)/)
-  if (!slugMatch) return notFoundScreen(root)
-  const slug = slugMatch[1]
+  if (!slugMatch && !isPreview) return notFoundScreen(root)
+  const slug = slugMatch?.[1]
 
   let experiment
   try {
@@ -52,6 +60,9 @@ async function main() {
     if (err.kind === 'not_found') return notFoundScreen(root)
     if (err.kind === 'gone') return goneScreen(root)
     if (err.kind === 'unsupported') return unsupportedBrowserScreen(root)
+    if (isPreview) {
+      return errorScreen(root, { title: 'Nothing to preview', message: 'Open Preview again from the builder.' })
+    }
     return errorScreen(root, {
       title: 'Could not load',
       message: 'Check your connection and try again.',

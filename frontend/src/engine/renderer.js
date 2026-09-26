@@ -36,7 +36,11 @@ export class Renderer {
     this.ctx.font = `${fontSize}px sans-serif`
     this.ctx.textAlign = 'center'
     this.ctx.textBaseline = 'middle'
-    this.ctx.fillText(text, this.width / 2, this.height / 2)
+    // Multi-line text (visual search grids, IAT category reminders) is centred as a block.
+    const lines = String(text).split('\n')
+    const lineHeight = fontSize * 1.3
+    const top = this.height / 2 - ((lines.length - 1) * lineHeight) / 2
+    lines.forEach((line, i) => this.ctx.fillText(line, this.width / 2, top + i * lineHeight))
   }
 
   drawImage(image) {

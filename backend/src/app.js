@@ -6,6 +6,7 @@ import experimentRoutes from './routes/experiments.js';
 import stimuliRoutes from './routes/stimuli.js';
 import resultRoutes from './routes/results.js';
 import generateRoutes from './routes/generate.js';
+import templateRoutes from './routes/templates.js';
 
 import { ApiResponse } from './utils/index.js';
 
@@ -28,6 +29,7 @@ app.use('/api/v1/experiments', experimentRoutes);
 app.use('/api/v1/stimuli', stimuliRoutes);
 app.use('/api/v1/results', resultRoutes);
 app.use('/api/v1/generate', generateRoutes);
+app.use('/api/v1/templates', templateRoutes);
 
 // ─── Global error handler ─────────────────────────────────
 // eslint-disable-next-line no-unused-vars

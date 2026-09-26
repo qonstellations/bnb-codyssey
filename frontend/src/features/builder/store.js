@@ -57,6 +57,7 @@ export const useBuilderStore = create((set, get) => ({
   isDirty: false,
   history: [snapshotOf(INITIAL_NODES, INITIAL_EDGES, DEFAULT_SETTINGS)],
   historyIndex: 0,
+  loadId: 0, // bumps on every loadFromJson so the canvas can refit
 
   // Drag/resize/selection-box changes from React Flow — not undo-tracked (too noisy per-frame).
   onNodesChange(changes) {
@@ -158,7 +159,8 @@ export const useBuilderStore = create((set, get) => ({
     return state.historyIndex < state.history.length - 1
   },
 
-  loadFromJson(draft) {
+  // dirty: true for drafts that are not on the server yet (AI output, templates).
+  loadFromJson(draft, { dirty = false } = {}) {
     const { nodes, edges } = compileToGraph(draft)
     // Older/blank drafts saved an empty consentText, which blocks publishing.
     const settings = { ...DEFAULT_SETTINGS, ...draft.settings }
@@ -168,9 +170,10 @@ export const useBuilderStore = create((set, get) => ({
       edges,
       settings,
       selectedNodeId: null,
-      isDirty: false,
+      isDirty: dirty,
       history: [snapshotOf(nodes, edges, settings)],
       historyIndex: 0,
+      loadId: get().loadId + 1,
     })
   },
 
