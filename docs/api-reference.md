@@ -176,7 +176,8 @@ exempt, so unlimited drafts can coexist; publish retries 3× on collision)
   },
   status:         String,        // enum: "in_progress" | "completed" | "abandoned"
   excluded:       Boolean,       // default: false
-  withdrawCode:   String,        // 8-char alphanumeric, participant-facing
+  withdrawCode:   String,        // 8-char alphanumeric, participant-facing, select:false
+  consent:        { agreedAt: Date, textHash: String }, // server-stamped at session start
   tokenHash:      String,        // sha256 of the write token; select:false, never serialised
   version:        Number,        // published version this participant ran
   seed:           Number,        // trial-order PRNG seed — replays the exact shuffle
@@ -1524,6 +1525,10 @@ sessions only; everything else still counts toward `totalSessions`/`abandoned`.
     "excluded": 3,
     "completionRate": 0.875,
     "meanRt": 534.2,
+    "medianRt": 512.0,
+    "sdRt": 118.6,
+    "semRt": 4.1,
+    "nRt": 836,
     "accuracy": 0.82,
     "meanTimingScore": 91.4
   }
@@ -1537,7 +1542,9 @@ sessions only; everything else still counts toward `totalSessions`/`abandoned`.
 | `abandoned` | `number` | Sessions with status `"abandoned"` |
 | `excluded` | `number` | Sessions with `excluded: true` |
 | `completionRate` | `number` | `completed / totalSessions` (0–1) |
-| `meanRt` | `number` | Mean RT in ms across non-excluded, completed sessions |
+| `meanRt` | `number` | Mean RT in ms of correct responses across non-excluded, completed sessions |
+| `medianRt` / `sdRt` / `semRt` | `number \| null` | Median, sample SD and SEM of the same RTs; `null` when not computable |
+| `nRt` | `number` | Number of RTs those stats are over |
 | `accuracy` | `number` | Proportion of correct responses (0–1), excluding null `correct` |
 | `meanTimingScore` | `number` | Mean calibration score across completed sessions |
 
@@ -1780,7 +1787,7 @@ sessionId,participantId,status,excluded,browser,os,screenW,screenH,pixelRatio,re
 session), with accuracy/RT already aggregated:
 
 ```
-sessionId,participantId,status,excluded,blockId,trials,scoredTrials,accuracy,meanRt,medianRt,timingScore,startedAt,completedAt,durationSec
+sessionId,participantId,status,excluded,blockId,trials,scoredTrials,accuracy,meanRt,medianRt,sdRt,timingScore,startedAt,completedAt,durationSec,consentAt,consentHash
 ```
 
 ```json

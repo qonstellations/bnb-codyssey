@@ -84,12 +84,14 @@ Pure JavaScript in `frontend/src/engine/`, no React, no network. See
 - [x] `trackEngagement()` — tab-switch, blur and fullscreen-exit counting
 - [x] Cross-browser feature gate (AudioContext / rAF / `indexedDB` / Worker)
 - [x] `selfcheck.mjs` — runnable assertion check of the pure logic
-- [~] Audio stimuli are loaded and decoded but **never played** — `audio.js` exports `play()` and
-      nothing calls it, and the trial renderer draws only `text` and `image`. The schema, the
-      model, the preloader, the builder's stimulus-type picker and the AI catalog all advertise
-      audio support. Small fix, listed in [P1](#p1--credibility-before-a-reviewer-looks-closely).
-- [~] Only `withhold` (the no-go flag) has no builder UI, so the shipped Go/No-Go template
-      cannot be hand-authored. It is honoured correctly at runtime by `score.js`.
+- [x] Audio stimuli play on the stimulus onset frame (`play()` from `audio.js`, called in
+      `runTrial`); the screen stays blank while they play
+- [x] `withhold` (the no-go flag) has a "No-go trial" checkbox in the trial form
+- [x] `blockMetrics()` — live `accuracy`, `meanRt` (correct responses only) and `completionRate`
+      for branch conditions
+- [x] `simulate.js` — dry run of a compiled design with virtual participants (ex-Gaussian RTs,
+      set accuracy): median / p90 duration, runs per block, share repeating a block, share
+      hitting the step guard. "Dry run" button in the builder toolbar
 - [ ] Verified on Firefox, Safari and a physical phone — the participant runtime has only been
       exercised in Chromium.
 
@@ -165,14 +167,13 @@ Pure JavaScript in `frontend/src/engine/`, no React, no network. See
       calibration, the published `version`, the shuffle `seed`, engagement counts, and
       per-trial response/RT/frame data) or `kind=sessions` (accuracy/meanRt/medianRt per
       session and per block); `scope=clean` limits either to completed, non-excluded sessions
-- [~] **No inferential statistics.** Means and proportions only — no standard deviation, no SEM,
-      no confidence intervals, no paired tests, no effect sizes, no RT trimming or outlier
+- [x] Summary RT is over correct responses only, with `medianRt`, `sdRt`, `semRt` and `nRt`;
+      the session export carries `sdRt` too
+- [~] **No inferential statistics.** Mean, median, SD and SEM only — no confidence intervals, no paired tests, no effect sizes, no RT trimming or outlier
       rules, no practice-block exclusion, no paradigm-specific scoring (IAT D-score, search
       slope). Stroop, Flanker and IAT templates ship, so the platform can collect data for
       paradigms whose standard analysis it cannot perform. This is the most valuable single
       improvement available. See [P1](#p1--credibility-before-a-reviewer-looks-closely).
-- [~] `meanRt` in the summary averages **all** trials, including incorrect and no-go responses,
-      which is not a meaningful decision time.
 - [~] Per-condition charts are aggregated client-side, capped at 50 sessions; they re-fetch only
       when the set of completed, included sessions changes. Sessions past the cap are silently
       dropped.
@@ -187,13 +188,10 @@ Full detail, including every known gap, in [privacy.md](privacy.md).
 - [x] 8-character withdrawal code plus public self-service delete of session and trials
 - [x] Ownership enforced in middleware on every results and experiment route
 - [x] Secrets only in environment variables; `GROQ_API_KEY` never reaches the browser
-- [~] The consent event itself is not persisted — no timestamp, no consent-text version. The
-      main IRB gap.
-- [~] `withdrawCode` rides along in the researcher sessions payload and can be deleted, though
-      the fix is a one-line `delete`.
-- [ ] `scrub.js` (free-text redaction) is **dead code** — nothing imports it, because the app has
-      no free-text field. Previously reported as working. Delete it or wire it up alongside a
-      free-text question type.
+- [x] Consent record: `startSession` stamps `consent.agreedAt` server-side and a SHA-256 of the
+      published consent text; both are in the session export (`consentAt`, `consentHash`)
+- [x] `withdrawCode` is `select: false` on the model, so no researcher route returns it
+- [x] `scrub.js` (unused free-text redaction) deleted — re-add alongside a free-text question type
 
 ### Phase 7 — AI generation
 
@@ -207,10 +205,10 @@ Full detail, including every known gap, in [privacy.md](privacy.md).
       duration, notes) → Create; Apply change refines the current recipe, Regenerate re-runs it
 - [x] `aiCatalog.js` — catalog of the six templates and their default timings, sync-checked by
       `templates.check.mjs` (which also covers knob arithmetic and clamping)
-- [~] The engine only computes `accuracy` for branches, so `meanRt` / `completionRate` branches
-      built by hand on the canvas never fire. The AI no longer emits them.
+- [x] `meanRt` / `completionRate` branches built by hand on the canvas now fire (the AI still
+      emits accuracy branches only)
 - [ ] Bot-detection score
-- [ ] Participant simulator
+- [x] Participant simulator (builder "Dry run")
 - [ ] Auto-generated IRB summary
 
 ### Phase 8 — Testing
@@ -246,12 +244,12 @@ Full detail, including every known gap, in [privacy.md](privacy.md).
 |---|---|---|---|
 | 5 | **A public URL for the demo** | Everything else is invisible to a judge who cannot open the link. Cheapest path is a tunnel — no account, no config. | 5 min |
 | 6 | ~~Validate drafts server-side on publish~~ | **done** — `publishExperiment` calls `validateExperiment(exp.draft)` and 400s with the first error; it also publishes the *normalised* draft, so participants get defaults filled in |
-| 7 | **Standard deviation, n and SEM in the summary** | A cognitive-science platform reporting a mean with no dispersion is the most exposed gap, and it is what makes the shipped Stroop/Flanker/IAT templates interpretable. Exclude incorrect and no-go trials from the RT mean. | ~20 lines |
-| 8 | **Play audio stimuli** | An entire stimulus modality is advertised in the schema, the builder and the AI catalog but silently does nothing. | ~10 lines |
-| 9 | **Return `meanRt` and `completionRate` from the engine's `getMetrics`** | Two of the three branch metrics are selectable in the UI and always evaluate false, so the feature reads as fake. | ~10 lines |
-| 10 | **Strip `withdrawCode` from researcher responses** | A researcher can currently read a participant's deletion code. | 1 line |
-| 11 | **Record consent** — server-stamped `agreedAt` plus a hash of the published consent text | Turns a consent checkbox into an auditable consent record, which is what the ethics claim rests on. | ~20 lines |
-| 12 | **A `withhold` toggle in the trial form** | The Go/No-Go template cannot be hand-authored without it. | ~10 lines |
+| 7 | ~~Standard deviation, n and SEM in the summary~~ | **done** | |
+| 8 | ~~Play audio stimuli~~ | **done** | |
+| 9 | ~~Return `meanRt` and `completionRate` from the engine's `getMetrics`~~ | **done** | |
+| 10 | ~~Strip `withdrawCode` from researcher responses~~ | **done** | |
+| 11 | ~~Record consent — server-stamped `agreedAt` plus a hash of the published consent text~~ | **done** | |
+| 12 | ~~A `withhold` toggle in the trial form~~ | **done** | |
 | 13 | **Verify on Firefox, Safari and a phone** | The participant runtime is the differentiator and has only run in Chromium. | 30 min |
 | 14 | **Move per-condition aggregation server-side** | Ends the ~50-requests-every-5-seconds pattern and the silent 50-session cap. | ~1 h |
 
@@ -259,7 +257,7 @@ Full detail, including every known gap, in [privacy.md](privacy.md).
 
 | # | Item | Note |
 |---|---|---|
-| 15 | Unique index on `(sessionId, trialIndex)` + upsert | A retried upload batch double-inserts trials, which corrupts the data. Needs a dedupe migration first if any collection already has duplicates. |
+| 15 | ~~Unique index on `(sessionId, trialIndex)` + upsert~~ | **done** |
 | 16 | Refresh token in an httpOnly cookie, with CORS tightened in the same change | CORS is locked to `CORS_ORIGIN`/`FRONTEND_URL` in production but still `'*'` in dev, and a cookie needs an exact origin. Do both together or auth breaks. |
 | 17 | `helmet` + a CSP | Defaults today. The CSP has to permit the Vite dev server and the Blob origin, so test a full participant run afterwards. |
 | 18 | ~~Per-session capability token for `/run/sessions/:id/*`~~ | **done** — a 24-byte token issued at `startSession`, stored as a SHA-256 hash with `select: false`, and required by `requireSessionToken` on every session write |
@@ -267,7 +265,7 @@ Full detail, including every known gap, in [privacy.md](privacy.md).
 | 20 | Route-level code splitting | The researcher bundle is ~1.55 MB (478 kB gz). Irrelevant on localhost; visible if deployed. |
 | 21 | ~~Store the randomization seed on the session~~ | **done** — the seed is issued at `startSession`, stored on the session, and drives one seeded PRNG stream for the whole run, so the exact trial order replays |
 | 22 | A test framework | The hand-rolled `.check.mjs` scripts work but have no runner, coverage or CI. |
-| 23 | Delete `scrub.js` | It is validated and shipped but never imported — the app has no free-text field to scrub. Delete it, or wire it up when a free-text question type exists. |
+| 23 | ~~Delete `scrub.js`~~ | **done** |
 | 24 | A real migration instead of the boot-time index self-heal | Correct, but it is a hack that runs on every cold start. |
 
 ## Demo runbook
@@ -304,7 +302,6 @@ they are not repeated:
 
 | Claim | Reality |
 |---|---|
-| "`scrub.js` strips emails and phone numbers from free-text answers" | The function is **dead code** — imported nowhere, and there is no free-text field to scrub. |
 | "The route test script is throwaway, not committed" | It is committed as `backend/test-routes.mjs`, with 84 assertions. |
 | "`frontend/README.md` exists but is the Vite default" | There is no `frontend/README.md`. The env-var documentation lives in the [root README](../README.md#environment) instead. |
 | "Delete the two `vercel.json` files" | Already deleted. |
