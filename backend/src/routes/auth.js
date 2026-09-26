@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -28,14 +27,6 @@ const refreshSchema = z.object({
 
 // ─── Helpers ───────────────────────────────────────────────
 
-function generateAccessToken(userId) {
-  return jwt.sign({ userId }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '15m' });
-}
-
-function generateRefreshToken(userId) {
-  return jwt.sign({ userId }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '7d' });
-}
-
 function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
@@ -54,11 +45,10 @@ router.post(
       throw new ApiError(409, 'Email already registered', [], '', 'CONFLICT');
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email, passwordHash });
+    const user = await User.create({ name, email, password });
 
-    const accessToken = generateAccessToken(user._id.toString());
-    const refreshToken = generateRefreshToken(user._id.toString());
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
 
     user.refreshToken = hashToken(refreshToken);
     await user.save();
@@ -85,12 +75,17 @@ router.post(
     const { email, password } = req.body;
 
     const user = await User.findOne({ email });
-    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    if (!user) {
       throw new ApiError(401, 'Wrong email or password', [], '', 'UNAUTHORIZED');
     }
 
-    const accessToken = generateAccessToken(user._id.toString());
-    const refreshToken = generateRefreshToken(user._id.toString());
+    const isPasswordValid = await user.isPasswordCorrect(password);
+    if (!isPasswordValid) {
+      throw new ApiError(401, 'Wrong email or password', [], '', 'UNAUTHORIZED');
+    }
+
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
 
     user.refreshToken = hashToken(refreshToken);
     await user.save();
@@ -127,8 +122,8 @@ router.post(
     }
 
     // Rotate: issue new pair, invalidate old
-    const newAccessToken = generateAccessToken(user._id.toString());
-    const newRefreshToken = generateRefreshToken(user._id.toString());
+    const newAccessToken = user.generateAccessToken();
+    const newRefreshToken = user.generateRefreshToken();
 
     user.refreshToken = hashToken(newRefreshToken);
     await user.save();
