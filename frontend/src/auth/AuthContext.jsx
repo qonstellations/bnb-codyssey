@@ -91,8 +91,8 @@ export function AuthProvider({ children }) {
       return;
     }
     setToken(stored);
-    if (stored === DEMO_TOKEN && demoEnabled) {
-      // Temporary demo session — no backend to validate against.
+    if (stored === DEMO_TOKEN) {
+      // Demo/guest session — no backend to validate against.
       setUser(demoUser());
       setTokenState(stored);
       setIsLoading(false);
@@ -124,6 +124,16 @@ export function AuthProvider({ children }) {
     return u;
   }, []);
 
+  // Guest mode: local demo session backed by api/demoBackend.js, no account needed.
+  const continueAsGuest = useCallback(() => {
+    setToken(DEMO_TOKEN);
+    storeSession(DEMO_TOKEN, null);
+    const u = { id: "demo-user", name: "Guest", email: DEMO_EMAIL };
+    setUser(u);
+    setTokenState(DEMO_TOKEN);
+    return u;
+  }, []);
+
   const signup = useCallback(async (name, email, password) => {
     if (demoEnabled) {
       setToken(DEMO_TOKEN);
@@ -141,8 +151,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, token, isLoading, login, signup, logout }),
-    [user, token, isLoading, login, signup, logout]
+    () => ({ user, token, isLoading, login, signup, logout, continueAsGuest }),
+    [user, token, isLoading, login, signup, logout, continueAsGuest]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

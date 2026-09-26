@@ -57,8 +57,8 @@ export default function BuilderPage() {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        // viewport minus app header (60) minus AppShell.Main padding (16 top + 16 bottom)
-        height: 'calc(100vh - 92px)',
+        // viewport minus app bar (64) minus main padding (16 top + 16 bottom)
+        height: 'calc(100vh - 96px)',
         minHeight: 520,
         overflow: 'hidden',
         border: '1px solid var(--mantine-color-gray-3)',

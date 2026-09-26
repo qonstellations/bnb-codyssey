@@ -13,7 +13,7 @@ export default function AccuracyChart({ conditionData }) {
       h={220}
       data={data}
       dataKey="condition"
-      series={[{ name: 'accuracy', color: 'teal.6', label: 'Accuracy (%)' }]}
+      series={[{ name: 'accuracy', color: 'blue.6', label: 'Accuracy (%)' }]}
     />
   )
 }
