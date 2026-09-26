@@ -1,13 +1,11 @@
-import { Link, useNavigate } from "react-router-dom";
-import { AppShell, Burger, Button, Group, Menu, Text, UnstyledButton } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
-import { Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Menu, UnstyledButton } from "@mantine/core";
 import { useAuth } from "../auth/AuthContext.jsx";
+import "../landing.css";
 
 function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [mobileOpened, { toggle: toggleMobile }] = useDisclosure(false);
 
   const onLogout = async () => {
     await logout();
@@ -15,46 +13,38 @@ function AppLayout() {
   };
 
   return (
-    <AppShell
-      header={{ height: 60 }}
-      navbar={{ width: 220, breakpoint: "sm", collapsed: { mobile: !mobileOpened } }}
-      padding="md"
-    >
-      <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between">
-          <Group>
-            <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
-            <UnstyledButton component={Link} to="/dashboard">
-              <Text fw={700} size="lg">
-                Codyssey
-              </Text>
+    <div className="ag ag-app">
+      <header className="ag-nav ag-appbar">
+        <Link to="/dashboard" className="ag-brand">
+          Codyssey
+        </Link>
+        <nav className="ag-tabs">
+          <NavLink to="/dashboard" className="ag-tab">
+            Experiments
+          </NavLink>
+          <NavLink to="/account" className="ag-tab">
+            Account
+          </NavLink>
+        </nav>
+        <Menu position="bottom-end">
+          <Menu.Target>
+            <UnstyledButton className="ag-pill ghost ag-pill-sm">
+              {user?.name ?? user?.email ?? "Account"}
             </UnstyledButton>
-          </Group>
-          <Menu position="bottom-end">
-            <Menu.Target>
-              <Button variant="subtle">{user?.name ?? user?.email ?? "Account"}</Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Label>{user?.email}</Menu.Label>
-              <Menu.Item component={Link} to="/account">
-                Account
-              </Menu.Item>
-              <Menu.Item onClick={onLogout}>Log out</Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        </Group>
-      </AppShell.Header>
-
-      <AppShell.Navbar p="md">
-        <Button variant="subtle" fullWidth justify="flex-start" component={Link} to="/dashboard">
-          Dashboard
-        </Button>
-      </AppShell.Navbar>
-
-      <AppShell.Main>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Label>{user?.email}</Menu.Label>
+            <Menu.Item component={Link} to="/account">
+              Account
+            </Menu.Item>
+            <Menu.Item onClick={onLogout}>Log out</Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
+      </header>
+      <main className="ag-app-main">
         <Outlet />
-      </AppShell.Main>
-    </AppShell>
+      </main>
+    </div>
   );
 }
 

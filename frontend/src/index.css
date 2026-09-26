@@ -1,51 +1,7 @@
 body {
   margin: 0;
-  background: #fafaf8;
-  color: #1a1a2e;
-}
-
-/* ---------- Landing ---------- */
-.landing {
-  min-height: calc(100vh - 16px);
-  display: flex;
-  align-items: center;
-}
-
-.landing-inner {
-  text-align: center;
-  padding-top: 48px;
-  padding-bottom: 64px;
-}
-
-.landing-kicker {
-  margin: 0 0 12px;
-  font-size: 14px;
-  letter-spacing: 0.04em;
-  color: #0e7c7b;
-}
-
-.landing-title {
-  font-size: clamp(2rem, 5vw, 3.25rem);
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  text-wrap: balance;
-}
-
-/* Single orchestrated entrance: rise once, then never again */
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.rise {
-  animation: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-  animation-delay: var(--d, 0ms);
+  background: #fff;
+  color: #1f1f1f;
 }
 
 /* Reaction-time pad */
@@ -75,7 +31,7 @@ body {
 }
 
 .rt-pad:focus-visible {
-  outline: 2px solid #0e7c7b;
+  outline: 2px solid #4285f4;
   outline-offset: 3px;
 }
 
@@ -85,14 +41,14 @@ body {
 }
 
 .rt-ready {
-  background: #0e7c7b;
-  border-color: #0e7c7b;
+  background: #34a853;
+  border-color: #34a853;
   color: #fff;
 }
 
 .rt-result {
   background: #fff;
-  border-color: #0e7c7b;
+  border-color: #34a853;
 }
 
 .rt-early {
@@ -139,7 +95,6 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rise,
   .rt-result .rt-value,
   .rt-early {
     animation: none;

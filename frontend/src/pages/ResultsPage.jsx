@@ -45,7 +45,7 @@ export default function ResultsPage() {
     <Stack gap="lg" p="lg">
       <Group justify="space-between">
         <Group>
-          <Title order={2}>Results</Title>
+          <Title order={1} style={{ letterSpacing: '-0.04em' }}>Results</Title>
           <Badge color="green" variant="light">
             Live
           </Badge>

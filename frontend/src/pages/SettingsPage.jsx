@@ -88,7 +88,7 @@ export default function SettingsPage() {
   return (
     <Stack gap="lg" p="lg" maw={640}>
       <Group justify="space-between">
-        <Title order={2}>Settings</Title>
+        <Title order={1} style={{ letterSpacing: '-0.04em' }}>Settings</Title>
         <Badge color={{ draft: 'gray', active: 'green', closed: 'red' }[experiment.status]}>
           {experiment.status}
         </Badge>

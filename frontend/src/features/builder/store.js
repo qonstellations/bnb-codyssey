@@ -83,6 +83,10 @@ export const useBuilderStore = create((set, get) => ({
     })
   },
 
+  removeEdge(id) {
+    commit(set, get, { edges: get().edges.filter((e) => e.id !== id) })
+  },
+
   removeNode(id) {
     const state = get()
     commit(set, get, {

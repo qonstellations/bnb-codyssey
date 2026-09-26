@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Button, Container, Group, Text, Title } from "@mantine/core";
 import { useAuth } from "../auth/AuthContext.jsx";
+import AgShell from "../components/AgShell.jsx";
+import Magnetic from "../components/Magnetic.jsx";
 
 // Interactive hero: a 10-line reaction-time trial. Click when the pad turns
 // green — the same rAF + performance.now() timing the real engine uses.
@@ -67,45 +68,76 @@ function ReactionDemo() {
   );
 }
 
+const FEATURES = [
+  ["Build visually", "Drag blocks, trials and branches onto a canvas — or describe the task and let AI draft it."],
+  ["Frame-accurate timing", "rAF + performance.now() in the participant's browser. No plugins, no installs."],
+  ["Results, live", "Accuracy and reaction times stream into your dashboard as sessions finish."],
+];
+
 function Landing() {
   const { user } = useAuth();
 
   return (
-    <div className="landing">
-      <Container size="xs" className="landing-inner">
-        <p className="landing-kicker rise" style={{ "--d": "0ms" }}>
-          Codyssey · behavioural research
-        </p>
-        <Title order={1} className="landing-title rise" style={{ "--d": "90ms" }}>
-          Measure minds, millisecond by millisecond.
-        </Title>
-        <Text c="dimmed" mt="md" className="rise" style={{ "--d": "180ms" }}>
+    <AgShell
+      navRight={
+        !user && (
+          <Link to="/login" className="ag-pill ghost">
+            Log in
+          </Link>
+        )
+      }
+    >
+      <header className="ag-hero">
+        <p className="ag-kicker ag-reveal">Codyssey · behavioural research</p>
+        <h1 className="ag-title ag-split">Measure minds, millisecond by millisecond.</h1>
+        <p className="ag-sub ag-reveal">
           Design a task, share a link, and watch reaction times arrive live — timed in the
           browser, accurate to the frame.
-        </Text>
-
-        <div className="rise" style={{ "--d": "270ms" }}>
-          <ReactionDemo />
-        </div>
-
-        <Group justify="center" mt="xl" className="rise" style={{ "--d": "360ms" }}>
+        </p>
+        <div className="ag-ctas ag-reveal">
           {user ? (
-            <Button component={Link} to="/dashboard" size="md">
-              Go to dashboard
-            </Button>
+            <Magnetic>
+              <Link to="/dashboard" className="ag-pill">
+                Go to dashboard
+              </Link>
+            </Magnetic>
           ) : (
             <>
-              <Button component={Link} to="/signup" size="md">
-                Start building
-              </Button>
-              <Button variant="outline" component={Link} to="/login" size="md">
-                Log in
-              </Button>
+              <Magnetic>
+                <Link to="/signup" className="ag-pill">
+                  Start building
+                </Link>
+              </Magnetic>
+              <Magnetic>
+                <Link to="/login" className="ag-pill ghost">
+                  Log in
+                </Link>
+              </Magnetic>
             </>
           )}
-        </Group>
-      </Container>
-    </div>
+        </div>
+      </header>
+
+      <section className="ag-section">
+        <h2 className="ag-h2 ag-scroll">Try a trial.</h2>
+        <p className="ag-sub ag-scroll">Click when the pad turns green.</p>
+        <div className="ag-scroll">
+          <ReactionDemo />
+        </div>
+      </section>
+
+      <section className="ag-section">
+        <h2 className="ag-h2 ag-scroll">Everything a lab needs.</h2>
+        <div className="ag-features">
+          {FEATURES.map(([title, body]) => (
+            <div key={title} className="ag-card ag-scroll">
+              <h3>{title}</h3>
+              <p>{body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+    </AgShell>
   );
 }
 

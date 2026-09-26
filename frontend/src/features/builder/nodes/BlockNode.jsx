@@ -1,30 +1,19 @@
 import { Handle, Position } from '@xyflow/react'
-import { Paper, Stack, Text } from '@mantine/core'
 
 export default function BlockNode({ data, selected }) {
+  const count = data.trials?.length ?? 0
   return (
-    <Paper
-      withBorder
-      p="sm"
-      radius="md"
-      style={{
-        minWidth: 160,
-        borderColor: selected ? 'var(--mantine-color-indigo-6)' : undefined,
-        borderWidth: selected ? 2 : 1,
-        background: 'var(--mantine-color-body)',
-      }}
-    >
+    <div className={`flow-card${selected ? ' selected' : ''}`}>
       <Handle type="target" position={Position.Left} />
-      <Stack gap={2}>
-        <Text fw={600} size="sm">
-          {data.label || 'Untitled block'}
-        </Text>
-        <Text size="xs" c="dimmed">
-          {data.trials?.length ?? 0} trial{(data.trials?.length ?? 0) === 1 ? '' : 's'}
-        </Text>
-      </Stack>
+      <div className="flow-card-title">
+        <span className="flow-dot" style={{ background: '#4285f4' }} />
+        {data.label || 'Untitled block'}
+      </div>
+      <div className="flow-card-sub">
+        {count} trial{count === 1 ? '' : 's'}
+      </div>
       <Handle type="source" position={Position.Right} id="out" />
-      <Handle type="source" position={Position.Bottom} id="decor" style={{ background: '#999' }} />
-    </Paper>
+      <Handle type="source" position={Position.Bottom} id="decor" className="flow-handle-muted" />
+    </div>
   )
 }

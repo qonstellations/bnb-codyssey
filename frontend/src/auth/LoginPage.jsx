@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
-import { Alert, Anchor, Button, Container, Paper, PasswordInput, TextInput, Title } from "@mantine/core";
+import { Alert, PasswordInput, TextInput } from "@mantine/core";
 import { useAuth, DEMO_CREDS } from "./AuthContext.jsx";
+import AgShell from "../components/AgShell.jsx";
 
 function LoginPage() {
-  const { user, login } = useAuth();
+  const { user, login, continueAsGuest } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState("");
@@ -29,45 +30,64 @@ function LoginPage() {
   };
 
   return (
-    <Container size={420} my={60}>
-      <Title ta="center">Welcome back</Title>
-      <Paper withBorder shadow="sm" p={24} mt={24} radius="md">
-        <form onSubmit={onSubmit}>
-          <TextInput
-            label="Email"
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-          />
-          <PasswordInput
-            label="Password"
-            required
-            mt="md"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-          />
-          {error && (
-            <Alert color="red" mt="md">
-              {error}
-            </Alert>
-          )}
-          {DEMO_CREDS && (
-            <Alert color="blue" mt="md">
-              Demo login — email: <b>{DEMO_CREDS.email}</b> · password: <b>{DEMO_CREDS.password}</b>
-            </Alert>
-          )}
-          <Button fullWidth mt="xl" type="submit" loading={submitting}>
-            Log in
-          </Button>
-        </form>
-      </Paper>
-      <Anchor component={Link} to="/signup" display="block" ta="center" mt="md">
-        No account? Sign up
-      </Anchor>
-    </Container>
+    <AgShell
+      navRight={
+        <Link to="/" className="ag-pill ghost">
+          ← Back to home
+        </Link>
+      }
+    >
+      <main className="ag-auth">
+        <h1 className="ag-auth-title ag-split">Welcome back</h1>
+        <div className="ag-card ag-auth-card ag-reveal">
+          <form onSubmit={onSubmit}>
+            <TextInput
+              label="Email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+            />
+            <PasswordInput
+              label="Password"
+              required
+              mt="md"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+            {error && (
+              <Alert color="red" mt="md">
+                {error}
+              </Alert>
+            )}
+            {DEMO_CREDS && (
+              <Alert color="blue" mt="md">
+                Demo login — email: <b>{DEMO_CREDS.email}</b> · password: <b>{DEMO_CREDS.password}</b>
+              </Alert>
+            )}
+            <button type="submit" className="ag-pill" style={{ marginTop: 28 }} disabled={submitting}>
+              {submitting ? "…" : "Log in"}
+            </button>
+          </form>
+            <button
+              type="button"
+              className="ag-pill ghost"
+              style={{ marginTop: 12 }}
+              onClick={() => {
+                continueAsGuest();
+                navigate("/dashboard", { replace: true });
+              }}
+            >
+              Continue as guest
+            </button>
+        </div>
+        <p className="ag-auth-alt ag-reveal">
+          No account? <Link to="/signup">Sign up</Link>
+        </p>
+      </main>
+    </AgShell>
   );
 }
 
