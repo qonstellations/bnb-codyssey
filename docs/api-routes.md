@@ -128,7 +128,7 @@ Saved experiment drafts, reusable across experiments. Owner-scoped.
 | GET | `/api/v1/results/:experimentId/sessions` | 👤 | List sessions with timing quality score |
 | GET | `/api/v1/results/:experimentId/sessions/:sessionId` | 👤 | One session + its trials |
 | PATCH | `/api/v1/results/:experimentId/sessions/:sessionId` | 👤 | Exclude / include a session |
-| GET | `/api/v1/results/:experimentId/export?format=csv\|json` | 👤 | Download all data (CSV is formula-injection safe) |
+| GET | `/api/v1/results/:experimentId/export?format=csv\|json&kind=trials\|sessions&scope=all\|clean` | 👤 | Download trial rows or a per-session/block summary (CSV is formula-injection safe) |
 
 ---
 
