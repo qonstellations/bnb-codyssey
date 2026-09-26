@@ -1,0 +1,22 @@
+{
+  "name": "bnb-codyssey-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch api/index.js",
+    "start": "node api/index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "mongoose": "^8.7.0",
+    "cors": "^2.8.5",
+    "zod": "^3.23.0",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "@vercel/blob": "^0.27.0",
+    "@upstash/redis": "^1.34.0",
+    "@upstash/ratelimit": "^2.0.0",
+    "dotenv": "^16.4.0",
+    "uuid": "^10.0.0"
+  }
+}

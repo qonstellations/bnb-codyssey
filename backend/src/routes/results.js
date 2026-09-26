@@ -1,0 +1,249 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import Session from '../models/Session.js';
+import Trial from '../models/Trial.js';
+import { requireAuth, ownsExperiment, validate } from '../middleware.js';
+
+const router = Router();
+
+// ─── Schemas ───────────────────────────────────────────────
+
+const excludeSchema = z.object({
+  excluded: z.boolean(),
+});
+
+// ─── GET /:experimentId/summary ────────────────────────────
+// Aggregated stats: participants, completion rate, mean RT, accuracy.
+
+router.get('/:experimentId/summary', requireAuth, ownsExperiment, async (req, res, next) => {
+  try {
+    const expId = req.experiment._id;
+
+    const sessions = await Session.find({ experimentId: expId });
+    const total = sessions.length;
+    const completed = sessions.filter((s) => s.status === 'completed').length;
+    const abandoned = sessions.filter((s) => s.status === 'abandoned').length;
+    const excluded = sessions.filter((s) => s.excluded).length;
+
+    // Compute RT + accuracy from non-excluded, completed sessions
+    const validSessions = sessions.filter((s) => s.status === 'completed' && !s.excluded);
+    const validSessionIds = validSessions.map((s) => s._id);
+
+    const trials = validSessionIds.length
+      ? await Trial.find({ sessionId: { $in: validSessionIds } })
+      : [];
+
+    const rts = trials.filter((t) => t.rt != null).map((t) => t.rt);
+    const meanRt = rts.length ? rts.reduce((a, b) => a + b, 0) / rts.length : 0;
+
+    const scored = trials.filter((t) => t.correct !== null);
+    const accuracy = scored.length
+      ? scored.filter((t) => t.correct).length / scored.length
+      : 0;
+
+    const scores = validSessions
+      .filter((s) => s.calibration?.score != null)
+      .map((s) => s.calibration.score);
+    const meanTimingScore = scores.length
+      ? scores.reduce((a, b) => a + b, 0) / scores.length
+      : 0;
+
+    res.json({
+      summary: {
+        totalSessions: total,
+        completed,
+        abandoned,
+        excluded,
+        completionRate: total ? Math.round((completed / total) * 1000) / 1000 : 0,
+        meanRt: Math.round(meanRt * 10) / 10,
+        accuracy: Math.round(accuracy * 1000) / 1000,
+        meanTimingScore: Math.round(meanTimingScore * 10) / 10,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── GET /:experimentId/sessions ───────────────────────────
+// List sessions with computed trialCount (no trial-level data).
+
+router.get('/:experimentId/sessions', requireAuth, ownsExperiment, async (req, res, next) => {
+  try {
+    const sessions = await Session.find({ experimentId: req.experiment._id });
+    const sessionIds = sessions.map((s) => s._id);
+
+    // Aggregate trial counts in one query
+    const counts = await Trial.aggregate([
+      { $match: { sessionId: { $in: sessionIds } } },
+      { $group: { _id: '$sessionId', count: { $sum: 1 } } },
+    ]);
+    const countMap = Object.fromEntries(
+      counts.map((c) => [c._id.toString(), c.count])
+    );
+
+    const result = sessions.map((s) => ({
+      ...s.toObject(),
+      trialCount: countMap[s._id.toString()] || 0,
+    }));
+
+    res.json({ sessions: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── GET /:experimentId/sessions/:sessionId ────────────────
+// Single session + full trial-level data.
+
+router.get('/:experimentId/sessions/:sessionId', requireAuth, ownsExperiment, async (req, res, next) => {
+  try {
+    const session = await Session.findOne({
+      _id: req.params.sessionId,
+      experimentId: req.experiment._id,
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Session not found' },
+      });
+    }
+
+    const trials = await Trial.find({ sessionId: session._id }).sort({ trialIndex: 1 });
+    res.json({ session, trials });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── PATCH /:experimentId/sessions/:sessionId ──────────────
+// Toggle exclude flag on a session.
+
+router.patch(
+  '/:experimentId/sessions/:sessionId',
+  requireAuth,
+  ownsExperiment,
+  validate(excludeSchema),
+  async (req, res, next) => {
+    try {
+      const session = await Session.findOneAndUpdate(
+        { _id: req.params.sessionId, experimentId: req.experiment._id },
+        { excluded: req.body.excluded },
+        { new: true }
+      );
+
+      if (!session) {
+        return res.status(404).json({
+          error: { code: 'NOT_FOUND', message: 'Session not found' },
+        });
+      }
+
+      res.json({ session: { _id: session._id, excluded: session.excluded } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ─── GET /:experimentId/export ─────────────────────────────
+// Download all data as flat CSV or JSON. One row per trial,
+// session fields denormalized.
+
+router.get('/:experimentId/export', requireAuth, ownsExperiment, async (req, res, next) => {
+  try {
+    const format = req.query.format;
+    if (format !== 'csv' && format !== 'json') {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: 'format query param must be "csv" or "json"' },
+      });
+    }
+
+    const sessions = await Session.find({ experimentId: req.experiment._id });
+    const sessionIds = sessions.map((s) => s._id);
+    const trials = await Trial.find({ sessionId: { $in: sessionIds } }).sort({
+      sessionId: 1,
+      trialIndex: 1,
+    });
+
+    // Build session lookup
+    const sessionMap = Object.fromEntries(sessions.map((s) => [s._id.toString(), s]));
+
+    // Flatten to one row per trial
+    const rows = trials.map((t) => {
+      const s = sessionMap[t.sessionId.toString()];
+      return {
+        sessionId: s._id.toString(),
+        participantId: s.participantId,
+        status: s.status,
+        excluded: s.excluded,
+        browser: s.deviceInfo?.browser ?? '',
+        os: s.deviceInfo?.os ?? '',
+        screenW: s.deviceInfo?.screenW ?? '',
+        screenH: s.deviceInfo?.screenH ?? '',
+        pixelRatio: s.deviceInfo?.pixelRatio ?? '',
+        refreshRate: s.calibration?.refreshRate ?? '',
+        jitter: s.calibration?.jitter ?? '',
+        timingScore: s.calibration?.score ?? '',
+        startedAt: s.startedAt?.toISOString() ?? '',
+        completedAt: s.completedAt?.toISOString() ?? '',
+        trialIndex: t.trialIndex,
+        blockId: t.blockId,
+        condition: t.condition,
+        stimulusType: t.stimulus?.type ?? '',
+        stimulusContent: t.stimulus?.content ?? '',
+        stimulusUrl: t.stimulus?.url ?? '',
+        response: t.response ?? '',
+        correct: t.correct,
+        rt: t.rt,
+        framesIntended: t.frameData?.intended ?? '',
+        framesActual: t.frameData?.actual ?? '',
+        framesDropped: t.frameData?.dropped ?? '',
+      };
+    });
+
+    // Generate filename
+    const title = req.experiment.title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+    const date = new Date().toISOString().split('T')[0];
+    const filename = `${title}_${date}`;
+
+    if (format === 'json') {
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}.json"`);
+      return res.json(rows);
+    }
+
+    // CSV
+    const columns = [
+      'sessionId', 'participantId', 'status', 'excluded',
+      'browser', 'os', 'screenW', 'screenH', 'pixelRatio',
+      'refreshRate', 'jitter', 'timingScore', 'startedAt', 'completedAt',
+      'trialIndex', 'blockId', 'condition',
+      'stimulusType', 'stimulusContent', 'stimulusUrl',
+      'response', 'correct', 'rt',
+      'framesIntended', 'framesActual', 'framesDropped',
+    ];
+
+    const csvHeader = columns.join(',');
+    const csvRows = rows.map((row) =>
+      columns
+        .map((col) => {
+          const val = row[col];
+          if (val === null || val === undefined) return '';
+          const str = String(val);
+          // Quote fields containing commas, quotes, or newlines
+          return str.includes(',') || str.includes('"') || str.includes('\n')
+            ? `"${str.replace(/"/g, '""')}"`
+            : str;
+        })
+        .join(',')
+    );
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
+    res.send([csvHeader, ...csvRows].join('\n'));
+  } catch (err) {
+    next(err);
+  }
+});
+
+export default router;
