@@ -16,9 +16,7 @@ import { AuthProvider } from "./auth/AuthContext.jsx";
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <BrowserRouter>
-      <MantineProvider
-        theme={theme}
-      >
+      <MantineProvider theme={theme} defaultColorScheme="auto">
         <Notifications position="top-right" />
         <ModalsProvider>
           <AuthProvider>

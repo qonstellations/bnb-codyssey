@@ -61,9 +61,9 @@ export default function BuilderPage() {
         height: 'calc(100vh - 96px)',
         minHeight: 520,
         overflow: 'hidden',
-        border: '1px solid var(--mantine-color-gray-3)',
+        border: '1px solid var(--mantine-color-default-border)',
         borderRadius: 12,
-        background: '#fff',
+        background: 'var(--app-surface)',
       }}
     >
       <Toolbar experimentId={id} title={title} onTitleChange={setTitle} />
@@ -73,8 +73,8 @@ export default function BuilderPage() {
           style={{
             width: 340,
             flexShrink: 0,
-            borderLeft: '1px solid var(--mantine-color-gray-3)',
-            background: '#fff',
+            borderLeft: '1px solid var(--mantine-color-default-border)',
+            background: 'var(--app-surface)',
           }}
           p="md"
         >

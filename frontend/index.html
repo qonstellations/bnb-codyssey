@@ -7,6 +7,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,300..700&display=swap" rel="stylesheet" />
     <title>Researcher</title>
+    <script>
+      // Apply the saved (or system) colour scheme before first paint, so dark mode never flashes white.
+      // Same key Mantine's localStorageColorSchemeManager uses.
+      try {
+        var s = localStorage.getItem("mantine-color-scheme-value") || "auto";
+        if (s === "auto") s = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.setAttribute("data-mantine-color-scheme", s);
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
