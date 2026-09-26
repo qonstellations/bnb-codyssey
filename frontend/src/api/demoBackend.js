@@ -161,3 +161,47 @@ export function demoGetSessions() {
 export function demoListStimuli() {
   return Promise.resolve({ stimuli: [] });
 }
+
+// ─── Participant runtime (demo) ─────────────────────────────
+// The run bundle has no demo branch of its own — serve published demo
+// experiments from the same localStorage so create → publish → take works
+// fully offline. Sessions/trials are stubs: nothing leaves the browser.
+
+export function demoLoadRun(slug) {
+  const found = read().find((e) => e.slug === slug);
+  if (!found) notFound();
+  if (found.status === "closed") {
+    const err = new Error("This experiment is no longer accepting participants");
+    err.code = "GONE";
+    err.status = 410;
+    throw err;
+  }
+  const latest = found.versions[found.versions.length - 1];
+  return Promise.resolve({
+    experiment: {
+      _id: found._id,
+      title: found.title,
+      version: latest?.version ?? 0,
+      snapshot: latest?.snapshot ?? {},
+    },
+  });
+}
+
+let lastWithdrawCode = null;
+
+export function demoStartSession() {
+  lastWithdrawCode = slug();
+  return Promise.resolve({ sessionId: uid(), withdrawCode: lastWithdrawCode });
+}
+
+export function demoUpdateSession() {
+  return Promise.resolve({ ok: true });
+}
+
+export function demoSaveTrials(trials) {
+  return Promise.resolve({ inserted: trials.length });
+}
+
+export function demoCompleteSession() {
+  return Promise.resolve({ withdrawCode: lastWithdrawCode });
+}

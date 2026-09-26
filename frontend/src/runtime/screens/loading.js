@@ -6,7 +6,7 @@ function isFeatureSupported() {
   return (
     typeof window.AudioContext !== 'undefined' &&
     typeof window.requestAnimationFrame !== 'undefined' &&
-    typeof window.IndexedDB !== 'undefined' &&
+    typeof window.indexedDB !== 'undefined' &&
     typeof Worker !== 'undefined'
   )
 }
