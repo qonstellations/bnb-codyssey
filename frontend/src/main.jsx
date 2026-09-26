@@ -17,7 +17,7 @@ createRoot(document.getElementById("root")).render(
     <BrowserRouter>
       <MantineProvider
         theme={{
-          primaryColor: "indigo",
+          primaryColor: "teal",
           fontFamily: "Inter, system-ui, -apple-system, sans-serif",
         }}
       >

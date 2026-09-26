@@ -1,3 +1,150 @@
 body {
   margin: 0;
+  background: #fafaf8;
+  color: #1a1a2e;
+}
+
+/* ---------- Landing ---------- */
+.landing {
+  min-height: calc(100vh - 16px);
+  display: flex;
+  align-items: center;
+}
+
+.landing-inner {
+  text-align: center;
+  padding-top: 48px;
+  padding-bottom: 64px;
+}
+
+.landing-kicker {
+  margin: 0 0 12px;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  color: #0e7c7b;
+}
+
+.landing-title {
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+/* Single orchestrated entrance: rise once, then never again */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise {
+  animation: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: var(--d, 0ms);
+}
+
+/* Reaction-time pad */
+.rt-pad {
+  margin-top: 32px;
+  width: min(420px, 100%);
+  min-height: 148px;
+  border-radius: 20px;
+  border: 1px solid #e3e1d8;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font: inherit;
+  color: inherit;
+  transition:
+    background-color 0.18s ease-out,
+    border-color 0.18s ease-out,
+    transform 0.12s ease-out;
+}
+
+.rt-pad:active {
+  transform: scale(0.985);
+}
+
+.rt-pad:focus-visible {
+  outline: 2px solid #0e7c7b;
+  outline-offset: 3px;
+}
+
+.rt-waiting {
+  background: #f6e9e7;
+  border-color: #e3b7b0;
+}
+
+.rt-ready {
+  background: #0e7c7b;
+  border-color: #0e7c7b;
+  color: #fff;
+}
+
+.rt-result {
+  background: #fff;
+  border-color: #0e7c7b;
+}
+
+.rt-early {
+  animation: shake 0.3s ease-out;
+}
+
+@keyframes shake {
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
+}
+
+.rt-value {
+  font-size: 28px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.rt-result .rt-value {
+  font-size: 56px;
+  animation: pop 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.rt-unit {
+  font-size: 13px;
+  opacity: 0.65;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .rt-result .rt-value,
+  .rt-early {
+    animation: none;
+  }
+  .rt-pad {
+    transition: none;
+  }
 }
