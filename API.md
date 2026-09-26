@@ -440,12 +440,22 @@ Get the currently authenticated user's profile.
 
 ---
 
+### `DELETE /api/v1/auth/me` 🔒
+
+Permanently delete the account (GDPR erasure): every owned experiment with its sessions and trials, saved templates, uploaded stimuli (DB records + blobs), then the user.
+
+**Request body:** `{ "password": "..." }` — re-confirms the owner.
+
+**Response: `200 OK`** `{ "deleted": true }` · **Errors:** `403 FORBIDDEN` wrong password, `401` not logged in.
+
 ---
 
 ## 3. Participant Runtime
 
 Public routes used by the timing engine. All rate-limited (10 req / 10 s / IP).
 All `:sessionId` params are ObjectId-validated — a malformed id returns `404`, not `500`.
+
+**Session token:** every write to an existing session (`PATCH`, `/trials`, `/complete`, `/beacon`) must include `"token"` in the JSON body — the value returned by `POST /:slug/sessions`. Wrong or missing token → `403 FORBIDDEN` (the beacon silently returns `204`). `/complete` also accepts optional `"engagement": { "tabSwitches", "blurCount", "fullscreenExits" }`. `/trials` is idempotent: a re-sent `trialIndex` for the same session is skipped, not duplicated.
 
 ---
 
@@ -549,9 +559,13 @@ Start a new participant session.
 ```json
 {
   "sessionId": "665f1a2b3c4d5e6f7a8b9c0e",
-  "withdrawCode": "a8Kp3mNx"
+  "withdrawCode": "a8Kp3mNx",
+  "token": "3f9c…(48 hex chars)",
+  "seed": 1739201847
 }
 ```
+
+`token` is returned only here (the server stores its sha256). `seed` drives the runtime's trial shuffle and is stored on the session, so the order is reproducible. The session also records the published `version` it ran.
 
 **Errors:**
 

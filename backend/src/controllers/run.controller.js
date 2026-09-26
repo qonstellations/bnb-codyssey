@@ -5,6 +5,7 @@ import Experiment from '../models/Experiment.js';
 import Session from '../models/Session.js';
 import Trial from '../models/Trial.js';
 import { asyncHandler, ApiError, ApiResponse } from '../utils/index.js';
+import { hashSessionToken, verifySessionToken } from '../middlewares/sessionToken.middleware.js';
 
 const trialItemSchema = z.object({
   trialIndex: z.number().int().min(0),
@@ -74,6 +75,9 @@ export const startSession = asyncHandler(async (req, res) => {
     throw new ApiError(410, 'This experiment is no longer accepting participants', [], '', 'GONE');
   }
 
+  // Only this browser gets the token; later writes to the session must present it.
+  const token = crypto.randomBytes(24).toString('hex');
+  const latest = experiment.versions[experiment.versions.length - 1];
   let session;
   for (let i = 0; i < 3; i++) {
     try {
@@ -82,6 +86,9 @@ export const startSession = asyncHandler(async (req, res) => {
         participantId: uuidv4(),
         deviceInfo: req.body.deviceInfo,
         withdrawCode: generateCode(),
+        tokenHash: hashSessionToken(token),
+        version: latest?.version ?? 0,
+        seed: crypto.randomInt(2 ** 31 - 1),
       });
       break;
     } catch (err) {
@@ -95,6 +102,8 @@ export const startSession = asyncHandler(async (req, res) => {
       {
         sessionId: session._id,
         withdrawCode: session.withdrawCode,
+        token,
+        seed: session.seed,
       },
       'Session started successfully'
     )
@@ -103,11 +112,7 @@ export const startSession = asyncHandler(async (req, res) => {
 
 // Update calibration or mark as abandoned
 export const patchSession = asyncHandler(async (req, res) => {
-  const session = await Session.findById(req.params.sessionId);
-
-  if (!session) {
-    throw new ApiError(404, 'Session not found', [], '', 'NOT_FOUND');
-  }
+  const session = req.session; // loaded by requireSessionToken
   if (session.status !== 'in_progress') {
     throw new ApiError(409, `Session is already ${session.status}`, [], '', 'CONFLICT');
   }
@@ -120,33 +125,37 @@ export const patchSession = asyncHandler(async (req, res) => {
 });
 
 // Upload a batch of trial data
-export const uploadTrials = asyncHandler(async (req, res) => {
-  const session = await Session.findById(req.params.sessionId);
-
-  if (!session) {
-    throw new ApiError(404, 'Session not found', [], '', 'NOT_FOUND');
+// Unordered insert; duplicates (a retried batch) are skipped, everything else still lands.
+async function insertTrials(session, trials) {
+  const docs = trials.map((t) => ({ ...t, sessionId: session._id }));
+  try {
+    return (await Trial.insertMany(docs, { ordered: false })).length;
+  } catch (err) {
+    const errors = err?.writeErrors ?? (err?.code === 11000 ? [err] : null);
+    if (!errors || errors.some((e) => (e.code ?? e.err?.code) !== 11000)) throw err;
+    return err.insertedDocs?.length ?? docs.length - errors.length;
   }
+}
+
+// Upload a batch of trial data
+export const uploadTrials = asyncHandler(async (req, res) => {
+  const session = req.session; // loaded by requireSessionToken
   if (session.status !== 'in_progress') {
     throw new ApiError(409, `Session is already ${session.status}`, [], '', 'CONFLICT');
   }
 
-  const docs = req.body.trials.map((t) => ({ ...t, sessionId: session._id }));
-  const result = await Trial.insertMany(docs);
-
-  res.status(201).json(new ApiResponse(201, { inserted: result.length }, 'Trials uploaded successfully'));
+  const inserted = await insertTrials(session, req.body.trials);
+  res.status(201).json(new ApiResponse(201, { inserted }, 'Trials uploaded successfully'));
 });
 
 // Mark session as finished
 export const completeSession = asyncHandler(async (req, res) => {
-  const session = await Session.findById(req.params.sessionId);
-
-  if (!session) {
-    throw new ApiError(404, 'Session not found', [], '', 'NOT_FOUND');
-  }
+  const session = req.session; // loaded by requireSessionToken
   if (session.status !== 'in_progress') {
     throw new ApiError(409, `Session is already ${session.status}`, [], '', 'CONFLICT');
   }
 
+  if (req.body.engagement) session.engagement = req.body.engagement;
   session.status = 'completed';
   session.completedAt = new Date();
   await session.save();
@@ -164,15 +173,14 @@ export const beaconSave = async (req, res) => {
       return res.status(204).end();
     }
 
-    const session = await Session.findById(req.params.sessionId);
-    if (!session) return res.status(204).end();
+    const session = await Session.findById(req.params.sessionId).select('+tokenHash');
+    if (!session || !verifySessionToken(session, data?.token)) return res.status(204).end();
     if (session.status !== 'in_progress') return res.status(204).end();
 
     // Save any remaining trials (validated — best-effort, drop garbage)
     const parsed = trialsSchema.safeParse({ trials: data.trials ?? [] });
     if (parsed.success && parsed.data.trials.length) {
-      const docs = parsed.data.trials.map((t) => ({ ...t, sessionId: session._id }));
-      await Trial.insertMany(docs, { ordered: false }).catch(() => {});
+      await insertTrials(session, parsed.data.trials).catch(() => {});
     }
 
     // Mark as abandoned if still in progress

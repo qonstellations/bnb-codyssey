@@ -118,10 +118,12 @@ async function main() {
 
   let sessionId
   let withdrawCode
+  let token
+  let seed = Date.now() // preview: fresh order each run; real sessions use the server's stored seed
   if (!isPreview) {
     try {
-      ;({ sessionId, withdrawCode } = await startSession(slug, calibration.deviceInfo))
-      await updateSession(sessionId, {
+      ;({ sessionId, withdrawCode, token, seed } = await startSession(slug, calibration.deviceInfo))
+      await updateSession(sessionId, token, {
         calibration: {
           refreshRate: calibration.refreshRate,
           jitter: calibration.jitter,
@@ -150,7 +152,7 @@ async function main() {
   const stage = trialStage(experiment, keys)
   root.replaceChildren(stage.el)
 
-  const uploader = isPreview ? null : createUploader({ sessionId })
+  const uploader = isPreview ? null : createUploader({ sessionId, token })
   let pendingTrials = []
   let flushed = Promise.resolve()
   uploader?.attachUnloadHandlers(() => pendingTrials)
@@ -160,6 +162,7 @@ async function main() {
   await runExperiment(experiment, {
     canvas: stage.canvas,
     refreshRate: calibration.refreshRate,
+    seed,
     assets,
     onProgress: stage.progress,
     onBlockStart: async (block, info) => {
@@ -173,9 +176,12 @@ async function main() {
       // Uploads in the background while the next block's intro screen is up.
       const toFlush = pendingTrials
       pendingTrials = []
-      flushed = uploader.flush(toFlush).catch(() => {
-        pendingTrials = pendingTrials.concat(toFlush)
-      })
+      // Chained so batches upload in order and none is skipped while another is in flight.
+      flushed = flushed
+        .then(() => uploader.flush(toFlush))
+        .catch(() => {
+          pendingTrials = pendingTrials.concat(toFlush)
+        })
     },
   })
 
@@ -187,16 +193,17 @@ async function main() {
     return
   }
 
-  try {
-    const result = await completeSession(sessionId)
+  // Failed batches go up before the session is closed; a completed session rejects uploads.
+  const finish = async () => {
+    await uploader.flush(pendingTrials)
+    pendingTrials = []
+    const result = await completeSession(sessionId, token, engagement.getCounts())
     completeScreen(root, result.withdrawCode ?? withdrawCode)
+  }
+  try {
+    await finish()
   } catch {
-    uploadFailedScreen(root, {
-      onRetry: async () => {
-        const result = await completeSession(sessionId).catch(() => null)
-        if (result) completeScreen(root, result.withdrawCode ?? withdrawCode)
-      },
-    })
+    uploadFailedScreen(root, { onRetry: () => finish().catch(() => {}) })
   }
 }
 
