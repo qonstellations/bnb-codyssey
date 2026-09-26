@@ -7,12 +7,15 @@ export function useApi(fn, { immediate = true } = {}) {
   const [loading, setLoading] = useState(immediate);
   const fnRef = useRef(fn);
   fnRef.current = fn;
+  const loaded = useRef(false);
 
+  // Only the first load flips `loading`; later reloads swap data in place so pages don't flash.
   const reload = useCallback(async () => {
-    setLoading(true);
+    if (!loaded.current) setLoading(true);
     setError(null);
     try {
       const result = await fnRef.current();
+      loaded.current = true;
       setData(result);
       return result;
     } catch (err) {

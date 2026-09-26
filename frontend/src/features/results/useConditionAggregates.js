@@ -11,54 +11,52 @@ export function useConditionAggregates(expId, sessions) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
 
+  // Keyed on the eligible ids, not the array identity, so a refresh with no new
+  // completed/included sessions doesn't refetch every session's trials.
+  const eligibleKey = sessions
+    .filter((s) => s.status === 'completed' && !s.excluded)
+    .slice(0, MAX_SESSIONS)
+    .map((s) => s._id)
+    .join(',')
+
   useEffect(() => {
-    if (!sessions || sessions.length === 0) {
+    if (!eligibleKey) {
       setData({})
       return
     }
     let cancelled = false
     setLoading(true)
 
-    const eligible = sessions
-      .filter((s) => s.status === 'completed' && !s.excluded)
-      .slice(0, MAX_SESSIONS)
-
-    Promise.all(eligible.map((s) => getSession(expId, s._id)))
+    Promise.all(eligibleKey.split(',').map((sid) => getSession(expId, sid)))
       .then((results) => {
         if (cancelled) return
+        // Per condition: every trial RT, and one accuracy % per participant.
         const byCondition = {}
         for (const { trials } of results) {
+          const scored = {}
           for (const trial of trials) {
             const key = trial.condition || '(none)'
-            byCondition[key] ??= { rtSum: 0, rtCount: 0, correct: 0, scored: 0 }
-            const bucket = byCondition[key]
-            if (typeof trial.rt === 'number') {
-              bucket.rtSum += trial.rt
-              bucket.rtCount += 1
-            }
+            byCondition[key] ??= { rts: [], accuracies: [] }
+            if (typeof trial.rt === 'number') byCondition[key].rts.push(trial.rt)
             if (trial.correct !== null) {
-              bucket.scored += 1
-              if (trial.correct) bucket.correct += 1
+              scored[key] ??= [0, 0]
+              scored[key][0] += trial.correct ? 1 : 0
+              scored[key][1] += 1
             }
           }
+          for (const [key, [correct, total]] of Object.entries(scored)) {
+            byCondition[key].accuracies.push((correct / total) * 100)
+          }
         }
-        const aggregated = Object.fromEntries(
-          Object.entries(byCondition).map(([condition, b]) => [
-            condition,
-            {
-              meanRt: b.rtCount ? b.rtSum / b.rtCount : null,
-              accuracy: b.scored ? b.correct / b.scored : null,
-            },
-          ])
-        )
-        setData(aggregated)
+        setData(byCondition)
       })
+      .catch(() => !cancelled && setData({}))
       .finally(() => !cancelled && setLoading(false))
 
     return () => {
       cancelled = true
     }
-  }, [expId, sessions])
+  }, [expId, eligibleKey])
 
   return { data, loading }
 }

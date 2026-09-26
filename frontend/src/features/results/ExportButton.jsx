@@ -1,37 +1,44 @@
-import { Button, Menu } from '@mantine/core'
+import { useState } from 'react'
+import { Box, Button, Menu, Switch } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { exportUrl } from '../../api/results.js'
-import { getToken } from '../../api/client.js'
-
-// Export is owner-only (needs Bearer auth), so a plain <a href> download won't carry the
-// token — fetch it manually and hand the browser a blob to save instead.
-async function download(expId, format) {
-  const res = await fetch(exportUrl(expId, format), {
-    headers: { Authorization: `Bearer ${getToken()}` },
-    credentials: 'include',
-  })
-  if (!res.ok) {
-    notifications.show({ color: 'red', message: 'Export failed' })
-    return
-  }
-  const blob = await res.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `results.${format}`
-  a.click()
-  URL.revokeObjectURL(url)
-}
+import { exportResults } from '../../api/results.js'
 
 export default function ExportButton({ expId }) {
+  const [clean, setClean] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  async function run(kind, format) {
+    setBusy(true)
+    try {
+      await exportResults(expId, { kind, format, scope: clean ? 'clean' : 'all' })
+    } catch (err) {
+      notifications.show({ color: 'red', title: 'Export failed', message: err.message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <Menu>
+    <Menu position="bottom-end" width={260}>
       <Menu.Target>
-        <Button variant="light">Export</Button>
+        <Button variant="light" loading={busy}>Export</Button>
       </Menu.Target>
       <Menu.Dropdown>
-        <Menu.Item onClick={() => download(expId, 'csv')}>CSV</Menu.Item>
-        <Menu.Item onClick={() => download(expId, 'json')}>JSON</Menu.Item>
+        <Box px="sm" py="xs">
+          <Switch
+            size="xs"
+            label="Completed, non-excluded only"
+            checked={clean}
+            onChange={(e) => setClean(e.currentTarget.checked)}
+          />
+        </Box>
+        <Menu.Divider />
+        <Menu.Label>Trial data (one row per trial)</Menu.Label>
+        <Menu.Item onClick={() => run('trials', 'csv')}>Trials · CSV</Menu.Item>
+        <Menu.Item onClick={() => run('trials', 'json')}>Trials · JSON</Menu.Item>
+        <Menu.Label>Summary (per session and block)</Menu.Label>
+        <Menu.Item onClick={() => run('sessions', 'csv')}>Summary · CSV</Menu.Item>
+        <Menu.Item onClick={() => run('sessions', 'json')}>Summary · JSON</Menu.Item>
       </Menu.Dropdown>
     </Menu>
   )

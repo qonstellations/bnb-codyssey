@@ -113,14 +113,88 @@ export const updateSessionStatus = asyncHandler(async (req, res) => {
   );
 });
 
-// Download all data as flat CSV or JSON
+const TRIAL_COLUMNS = [
+  'sessionId', 'participantId', 'status', 'excluded', 'browser', 'os', 'screenW', 'screenH',
+  'pixelRatio', 'refreshRate', 'jitter', 'timingScore', 'version', 'seed', 'tabSwitches',
+  'blurCount', 'fullscreenExits', 'startedAt', 'completedAt', 'trialIndex', 'blockId',
+  'condition', 'stimulusType', 'stimulusContent', 'stimulusUrl', 'response', 'correct', 'rt',
+  'framesIntended', 'framesActual', 'framesDropped',
+];
+const SESSION_COLUMNS = [
+  'sessionId', 'participantId', 'status', 'excluded', 'blockId', 'trials', 'scoredTrials',
+  'accuracy', 'meanRt', 'medianRt', 'timingScore', 'startedAt', 'completedAt', 'durationSec',
+];
+
+const round = (v, dp) => (v == null ? '' : Math.round(v * 10 ** dp) / 10 ** dp);
+const median = (xs) => {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+// One row per session per block, plus an overall row (blockId "all") per session.
+function sessionSummaryRows(sessions, trials) {
+  const bySession = new Map(sessions.map((s) => [s._id.toString(), []]));
+  for (const t of trials) bySession.get(t.sessionId.toString())?.push(t);
+  return sessions.flatMap((s) => {
+    const ts = bySession.get(s._id.toString());
+    const blocks = new Map();
+    for (const t of ts) blocks.set(t.blockId, [...(blocks.get(t.blockId) ?? []), t]);
+    const groups = [['all', ts], ...blocks];
+    return groups.map(([blockId, group]) => {
+      const rts = group.filter((t) => t.rt != null).map((t) => t.rt);
+      const scored = group.filter((t) => t.correct != null);
+      return {
+        sessionId: s._id.toString(),
+        participantId: s.participantId,
+        status: s.status,
+        excluded: s.excluded,
+        blockId,
+        trials: group.length,
+        scoredTrials: scored.length,
+        accuracy: scored.length ? round(scored.filter((t) => t.correct).length / scored.length, 3) : '',
+        meanRt: rts.length ? round(rts.reduce((a, b) => a + b, 0) / rts.length, 1) : '',
+        medianRt: round(median(rts), 1),
+        timingScore: s.calibration?.score ?? '',
+        startedAt: s.startedAt?.toISOString() ?? '',
+        completedAt: s.completedAt?.toISOString() ?? '',
+        durationSec: s.startedAt && s.completedAt ? round((s.completedAt - s.startedAt) / 1000, 1) : '',
+      };
+    });
+  });
+}
+
+function toCsv(rows, columns) {
+  const cell = (val) => {
+    if (val === null || val === undefined) return '';
+    let str = String(val);
+    // Prevent CSV formula injection (Excel executes =,+,-,@ prefixes)
+    if (/^[=+\-@\t\r]/.test(str)) str = `'${str}`;
+    // Quote fields containing commas, quotes, or newlines
+    return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+  };
+  return [columns.join(','), ...rows.map((row) => columns.map((c) => cell(row[c])).join(','))].join('\n');
+}
+
+// Download data as CSV or JSON: trial rows (kind=trials) or per-session/block summary
+// (kind=sessions); scope=clean keeps only completed, non-excluded sessions.
 export const exportData = asyncHandler(async (req, res) => {
-  const format = req.query.format;
+  const { format, kind = 'trials', scope = 'all' } = req.query;
   if (format !== 'csv' && format !== 'json') {
     throw new ApiError(400, 'format query param must be "csv" or "json"', [], '', 'VALIDATION_ERROR');
   }
+  if (kind !== 'trials' && kind !== 'sessions') {
+    throw new ApiError(400, 'kind query param must be "trials" or "sessions"', [], '', 'VALIDATION_ERROR');
+  }
+  if (scope !== 'all' && scope !== 'clean') {
+    throw new ApiError(400, 'scope query param must be "all" or "clean"', [], '', 'VALIDATION_ERROR');
+  }
 
-  const sessions = await Session.find({ experimentId: req.experiment._id });
+  const sessions = await Session.find({
+    experimentId: req.experiment._id,
+    ...(scope === 'clean' && { status: 'completed', excluded: { $ne: true } }),
+  }).sort({ startedAt: 1 });
   const sessionIds = sessions.map((s) => s._id);
   const trials = await Trial.find({ sessionId: { $in: sessionIds } }).sort({
     sessionId: 1,
@@ -131,7 +205,7 @@ export const exportData = asyncHandler(async (req, res) => {
   const sessionMap = Object.fromEntries(sessions.map((s) => [s._id.toString(), s]));
 
   // Flatten to one row per trial
-  const rows = trials.map((t) => {
+  const rows = kind === 'sessions' ? sessionSummaryRows(sessions, trials) : trials.map((t) => {
     const s = sessionMap[t.sessionId.toString()];
     return {
       sessionId: s._id.toString(),
@@ -169,9 +243,9 @@ export const exportData = asyncHandler(async (req, res) => {
   });
 
   // Generate filename
-  const title = req.experiment.title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+  const title = req.experiment.title.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'experiment';
   const date = new Date().toISOString().split('T')[0];
-  const filename = `${title}_${date}`;
+  const filename = `${title}_${kind}${scope === 'clean' ? '_clean' : ''}_${date}`;
 
   if (format === 'json') {
     res.setHeader('Content-Type', 'application/json');
@@ -179,59 +253,8 @@ export const exportData = asyncHandler(async (req, res) => {
     return res.json(rows);
   }
 
-  // CSV
-  const columns = [
-    'sessionId',
-    'participantId',
-    'status',
-    'excluded',
-    'browser',
-    'os',
-    'screenW',
-    'screenH',
-    'pixelRatio',
-    'refreshRate',
-    'jitter',
-    'timingScore',
-    'version',
-    'seed',
-    'tabSwitches',
-    'blurCount',
-    'fullscreenExits',
-    'startedAt',
-    'completedAt',
-    'trialIndex',
-    'blockId',
-    'condition',
-    'stimulusType',
-    'stimulusContent',
-    'stimulusUrl',
-    'response',
-    'correct',
-    'rt',
-    'framesIntended',
-    'framesActual',
-    'framesDropped',
-  ];
-
-  const csvHeader = columns.join(',');
-  const csvRows = rows.map((row) =>
-    columns
-      .map((col) => {
-        const val = row[col];
-        if (val === null || val === undefined) return '';
-        let str = String(val);
-        // Prevent CSV formula injection (Excel executes =,+,-,@ prefixes)
-        if (/^[=+\-@\t\r]/.test(str)) str = `'${str}`;
-        // Quote fields containing commas, quotes, or newlines
-        return str.includes(',') || str.includes('"') || str.includes('\n')
-          ? `"${str.replace(/"/g, '""')}"`
-          : str;
-      })
-      .join(',')
-  );
-
-  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
-  res.send([csvHeader, ...csvRows].join('\n'));
+  // BOM so Excel reads UTF-8 stimuli (accents, non-Latin words) correctly.
+  res.send('﻿' + toCsv(rows, kind === 'sessions' ? SESSION_COLUMNS : TRIAL_COLUMNS));
 });
