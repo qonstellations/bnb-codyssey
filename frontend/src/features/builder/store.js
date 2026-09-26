@@ -177,6 +177,12 @@ export const useBuilderStore = create((set, get) => ({
     })
   },
 
+  // Toolbar "Clear": back to a bare Start → End. Undoable; settings (consent, colours) kept.
+  clearCanvas() {
+    commit(set, get, { nodes: INITIAL_NODES, edges: INITIAL_EDGES })
+    set({ selectedNodeId: null, loadId: get().loadId + 1 })
+  },
+
   reset() {
     set({
       nodes: INITIAL_NODES,
