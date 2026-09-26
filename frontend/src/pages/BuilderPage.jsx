@@ -53,11 +53,31 @@ export default function BuilderPage() {
   if (error) return <ErrorState message={error.message} />
 
   return (
-    <Box style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)' }}>
+    <Box
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        // viewport minus app header (60) minus AppShell.Main padding (16 top + 16 bottom)
+        height: 'calc(100vh - 92px)',
+        minHeight: 520,
+        overflow: 'hidden',
+        border: '1px solid var(--mantine-color-gray-3)',
+        borderRadius: 12,
+        background: '#fff',
+      }}
+    >
       <Toolbar experimentId={id} title={title} onTitleChange={setTitle} />
-      <Box style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+      <Box style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0 }}>
         <Canvas />
-        <ScrollArea style={{ width: 320, borderLeft: '1px solid var(--mantine-color-gray-3)' }} p="md">
+        <ScrollArea
+          style={{
+            width: 340,
+            flexShrink: 0,
+            borderLeft: '1px solid var(--mantine-color-gray-3)',
+            background: '#fff',
+          }}
+          p="md"
+        >
           <NodeInspector />
         </ScrollArea>
       </Box>

@@ -29,6 +29,9 @@ export default function TrialForm({ trial, onSave, onCancel }) {
   const [value, setValue] = useState(() => trial ?? emptyTrial())
   const [pickerOpen, setPickerOpen] = useState(false)
 
+  const keyMismatch =
+    value.correctKey && value.validKeys.length > 0 && !value.validKeys.includes(value.correctKey)
+
   function patch(fields) {
     setValue((v) => ({ ...v, ...fields }))
   }
@@ -104,6 +107,7 @@ export default function TrialForm({ trial, onSave, onCancel }) {
         <TextInput
           label="Correct key"
           value={value.correctKey ?? ''}
+          error={keyMismatch ? 'Correct key must be one of the valid keys' : null}
           onChange={(e) => patch({ correctKey: e.currentTarget.value || null })}
         />
       </Group>
@@ -140,13 +144,15 @@ export default function TrialForm({ trial, onSave, onCancel }) {
         <Button variant="default" onClick={onCancel}>
           Cancel
         </Button>
-        <Button onClick={() => onSave(value)}>Save trial</Button>
+        <Button disabled={!!keyMismatch} onClick={() => onSave(value)}>
+          Save trial
+        </Button>
       </Group>
 
       <StimulusPicker
         opened={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        onPick={(stimulus) => patchStimulus({ url: stimulus.url })}
+        onPick={(stimulus) => patchStimulus({ type: stimulus.type, url: stimulus.url })}
       />
     </Stack>
   )

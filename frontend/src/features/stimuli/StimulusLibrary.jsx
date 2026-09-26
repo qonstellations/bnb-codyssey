@@ -1,4 +1,5 @@
 import { ActionIcon, Card, Group, SimpleGrid, Stack, Text } from '@mantine/core'
+import { notifications } from '@mantine/notifications'
 import { useApi } from '../../hooks/useApi.js'
 import { deleteStimulus, listStimuli } from '../../api/stimuli.js'
 import LoadingScreen from '../../components/LoadingScreen.jsx'
@@ -10,8 +11,12 @@ export default function StimulusLibrary({ onSelect }) {
   const { data, error, loading, reload } = useApi(listStimuli)
 
   async function remove(id) {
-    await deleteStimulus(id)
-    reload()
+    try {
+      await deleteStimulus(id)
+      reload()
+    } catch (err) {
+      notifications.show({ color: 'red', message: err.message ?? 'Delete failed' })
+    }
   }
 
   return (

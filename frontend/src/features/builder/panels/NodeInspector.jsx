@@ -11,6 +11,17 @@ export default function NodeInspector() {
 
   const node = nodes.find((n) => n.id === selectedNodeId)
 
+  return (
+    <Stack gap="md">
+      <Text size="sm" fw={700}>
+        {!node ? 'Experiment settings' : node.type === 'block' ? 'Block' : node.type === 'branch' ? 'Branch' : node.type === 'loop' ? 'Loop' : 'Info'}
+      </Text>
+      <InspectorBody node={node} updateNode={updateNode} />
+    </Stack>
+  )
+}
+
+function InspectorBody({ node, updateNode }) {
   if (!node) return <SettingsPanel />
 
   if (node.type === 'block') {
@@ -24,9 +35,6 @@ export default function NodeInspector() {
   if (node.type === 'loop') {
     return (
       <Stack gap="sm">
-        <Text size="xs" fw={700} c="dimmed">
-          LOOP
-        </Text>
         <Text size="sm">Repeats the connected block in place.</Text>
         <NumberInput
           label="Repetitions"

@@ -16,7 +16,10 @@ function blockNodeToSchema(node) {
   }
 }
 
-// nodes+edges -> experiment draft JSON. Returns { data, errors } (data is null if invalid).
+// nodes+edges -> experiment draft JSON.
+// Returns { data, errors, warnings } (data is null if invalid).
+// Blocks not wired into the start→end chain are reported as warnings, not
+// silently dropped.
 export function compileToExperiment(nodes, edges, settings) {
   const nodeById = new Map(nodes.map((n) => [n.id, n]))
   const outgoing = new Map()
@@ -72,16 +75,31 @@ export function compileToExperiment(nodes, edges, settings) {
   }
 
   const draft = { settings, blocks, branches, loops }
-  const result = experimentSchema.safeParse(draft)
-  if (result.success) return { data: result.data, errors: [] }
+  const chainedIds = new Set(blocks.map((b) => b.id))
+  const warnings = nodes
+    .filter((n) => n.type === 'block' && !chainedIds.has(n.id))
+    .map((n) => `Block '${n.data.label || n.id}' is not connected to the chain and will be skipped`)
 
-  const errors = (result.error.issues ?? []).map((issue) => ({
-    path: issue.path.length ? issue.path.join('.') : '(root)',
-    message: issue.message,
-    // best-effort: surface the offending block id when the path points into blocks[i]
-    nodeId: typeof issue.path[1] === 'number' ? blocks[issue.path[1]]?.id : undefined,
-  }))
-  return { data: null, errors }
+  const result = experimentSchema.safeParse(draft)
+  if (result.success) return { data: result.data, errors: [], warnings }
+
+  const errors = (result.error.issues ?? []).map((issue) => {
+    let nodeId = typeof issue.path[1] === 'number' ? blocks[issue.path[1]]?.id : undefined
+    if (!nodeId) {
+      // cross-trial checks (e.g. correctKey) name the trial, not the block index —
+      // resolve the owning block so the canvas can highlight it.
+      const trialMatch = /trial '([^']+)'/.exec(issue.message)
+      if (trialMatch) {
+        nodeId = blocks.find((b) => b.trials.some((t) => t.id === trialMatch[1]))?.id
+      }
+    }
+    return {
+      path: issue.path.length ? issue.path.join('.') : '(root)',
+      message: issue.message,
+      nodeId,
+    }
+  })
+  return { data: null, errors, warnings }
 }
 
 const COLUMN_WIDTH = 240
