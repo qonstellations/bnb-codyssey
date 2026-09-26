@@ -4,8 +4,11 @@ import { compileToExperiment, compileToGraph } from './compile.js'
 
 const HISTORY_LIMIT = 50
 
+// Same wording the runtime consent screen falls back to; schema requires non-empty.
+const DEFAULT_CONSENT = 'You are being asked to participate in a research study.'
+
 const DEFAULT_SETTINGS = {
-  consentText: '',
+  consentText: DEFAULT_CONSENT,
   fullscreen: true,
   showProgressBar: true,
   instructionsText: '',
@@ -83,6 +86,10 @@ export const useBuilderStore = create((set, get) => ({
     })
   },
 
+  removeEdge(id) {
+    commit(set, get, { edges: get().edges.filter((e) => e.id !== id) })
+  },
+
   removeNode(id) {
     const state = get()
     commit(set, get, {
@@ -128,7 +135,9 @@ export const useBuilderStore = create((set, get) => ({
 
   loadFromJson(draft) {
     const { nodes, edges } = compileToGraph(draft)
-    const settings = draft.settings ?? DEFAULT_SETTINGS
+    // Older/blank drafts saved an empty consentText, which blocks publishing.
+    const settings = { ...DEFAULT_SETTINGS, ...draft.settings }
+    if (!settings.consentText?.trim()) settings.consentText = DEFAULT_CONSENT
     set({
       nodes,
       edges,

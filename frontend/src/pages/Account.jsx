@@ -36,10 +36,10 @@ function Account() {
 
   return (
     <Container size="xs" my="xl">
-      <Title order={2}>Account</Title>
+      <Title order={1} style={{ letterSpacing: "-0.04em" }}>Account</Title>
       <Paper withBorder shadow="sm" p="xl" mt="md" radius="md">
         <Group>
-          <Avatar size="lg" radius="xl" color="teal">
+          <Avatar size="lg" radius="xl" color="blue">
             {initials(user?.name, user?.email)}
           </Avatar>
           <Stack gap={2}>
