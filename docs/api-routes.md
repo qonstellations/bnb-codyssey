@@ -1,4 +1,4 @@
-# ROUTES.md — API Routes (as built)
+# API Routes — one-page table (as built)
 
 All routes live under `/api/v1`. Base URL: `http://localhost:3001/api/v1` (local dev — no deployed backend).
 
@@ -11,6 +11,13 @@ All routes live under `/api/v1`. Base URL: `http://localhost:3001/api/v1` (local
 lives under `data`. Errors are `{ statusCode, success, message, errors, error: { code, message } }`.
 The frontend unwraps `.data` once in `src/api/client.js`, so app code always sees the raw payload.
 `GET .../export?format=json` is the one raw-array exception.
+
+For request and response bodies, data models and error semantics, see
+[api-reference.md](api-reference.md). For setup see the [root README](../README.md).
+
+**Sections** — [Health](#health) · [Auth](#auth) · [Participant](#participant-runtime) ·
+[Experiments](#experiments) · [Stimuli](#stimuli) · [AI](#ai) · [Templates](#templates) ·
+[Results](#results)
 
 ---
 
