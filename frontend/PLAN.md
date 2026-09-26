@@ -11,8 +11,7 @@ A detailed checklist for everything inside `/frontend`. Work top to bottom and t
 > The rest of the frontend only needs a small auth interface (see Phase 2), so you can build auth
 > in parallel without blocking anyone.
 
----
-
+--
 ## Phase 0 — Project Setup
 
 ### Create the app
