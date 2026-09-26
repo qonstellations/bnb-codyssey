@@ -309,25 +309,38 @@ because a free-text description of a paradigm is much easier for a researcher th
 trials by hand.
 
 The model **never writes trials**. It assembles a *recipe* from the six built-in templates
-(`frontend/src/shared/templates`): which template blocks to run, in what order, how many
-repetitions, plus branches and loops. Every trial therefore comes from code we wrote and tested.
+(`frontend/src/shared/templates`): which template blocks to run and in what order, plus a few
+bounded knobs per block — total trial count, response window, fixation, feedback on/off — and
+practice retries. Every trial therefore comes from code we wrote and tested.
 
-1. **Design.** `aiCatalog.js` renders `TEMPLATE_CATALOG` (template ids, block ids, trial counts,
-   default retry branch) into the prompt. Asked for one task, the model reproduces that template
-   exactly; asked for several, it combines their blocks. Anything outside the library is mapped
-   to the closest task and disclosed in `notes`.
-2. **Repair.** `checkRecipe()` rejects unknown templates or blocks, dangling or duplicate
-   branches, and bad metrics/operators. Errors go back to the model with the catalog and the last
-   JSON, at most two rounds.
-3. **Compose (client).** `composeFromTemplates(recipe)` copies each referenced block's trials
-   verbatim, merges the instructions of the tasks used, and validates the result against the
-   shared schema before loading it onto the canvas.
+The Dashboard's `AiGenerateModal` runs it as **Describe → Questions → Review → Create**:
+
+1. **Questions** (`step: "questions"`, always shown, skippable). A short prompt asks 1–3
+   multiple-choice questions about what the description leaves open: which task (when none
+   matches, or an unsupported paradigm such as Flanker is named), length, practice/retry,
+   feedback, pace. If the model returns nothing usable, `FALLBACK_QUESTIONS` is sent instead, so
+   the round never silently disappears.
+2. **Design** (`step: "draft"`, `reasoning_effort: "medium"`). The description plus answers
+   become `{ steps, retries }`. The model states intent (e.g. `trials: 60`); code does the
+   arithmetic. `loops` and non-accuracy branches are deliberately not in the AI's vocabulary —
+   `repetitions` already covers repetition, and the engine only computes `accuracy` at run time.
+3. **Check.** `checkRecipe()` rejects unknown tasks/blocks and dangling retries (these go back to
+   the model for at most two repair rounds) and **clamps** out-of-range knobs, recording each
+   clamp as a plain-English note instead of failing.
+4. **Compose (client).** `composeFromTemplates(recipe)` copies each block's trials verbatim, sets
+   `repetitions = round(trials / uniqueTrials)` (≤ 100), applies timing/feedback overrides, uses
+   the smallest template font when tasks are mixed, and validates against the shared schema.
+5. **Review.** The modal shows each block's real trial count, response window and feedback, the
+   retries in words, the estimated duration and the notes. Nothing is saved until **Create**.
+   **Apply change** sends the current recipe back with a refinement; **Regenerate** re-runs the
+   same request with `fresh: true`.
 
 The backend deploys separately and cannot import frontend code, so `TEMPLATE_CATALOG` is a
-hand-kept mirror; `templates.check.mjs` fails if it drifts from the library.
+hand-kept mirror (block ids, trial counts, default timings); `templates.check.mjs` fails if it
+drifts from the library, and covers the knob arithmetic and clamping.
 
-Results are cached in-process for 60 minutes, max 100 entries. Only **valid** recipes are cached,
-so "Try again" after a bad generation genuinely re-runs the model.
+Results are cached in-process for 60 minutes, max 100 entries, keyed on the whole request body.
+Only **valid** recipes are cached, and Regenerate bypasses the cache.
 
 ## Data model
 

@@ -197,10 +197,18 @@ Full detail, including every known gap, in [privacy.md](privacy.md).
 
 ### Phase 7 — AI generation
 
-- [x] `POST /generate` — model returns a recipe of template-library blocks (never raw trials),
-      `checkRecipe` validation, up to two repair rounds, 60-minute valid-only cache
-- [x] Client wired: `api/ai.js` posts `{ prompt }`; `composeFromTemplates` expands the recipe
-- [x] `aiCatalog.js` — catalog of the six templates, sync-checked by `templates.check.mjs`
+- [x] `POST /generate` — model returns a recipe of template-library blocks (never raw trials)
+      with bounded knobs (trial count, response window, fixation, feedback, practice retries);
+      `checkRecipe` validates and clamps with plain-English notes, up to two repair rounds,
+      60-minute valid-only cache keyed on the whole request, `fresh` to regenerate
+- [x] Clarifying questions: an explicit `step: "questions"` round, always shown and skippable,
+      with a fixed fallback set when the model returns none
+- [x] Dashboard modal: Describe → Questions → Review (real trial counts, timing, retries,
+      duration, notes) → Create; Apply change refines the current recipe, Regenerate re-runs it
+- [x] `aiCatalog.js` — catalog of the six templates and their default timings, sync-checked by
+      `templates.check.mjs` (which also covers knob arithmetic and clamping)
+- [~] The engine only computes `accuracy` for branches, so `meanRt` / `completionRate` branches
+      built by hand on the canvas never fire. The AI no longer emits them.
 - [ ] Bot-detection score
 - [ ] Participant simulator
 - [ ] Auto-generated IRB summary
