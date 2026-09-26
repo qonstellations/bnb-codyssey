@@ -22,13 +22,13 @@ function parseBulkCsv(text) {
     .map((line, i) => {
       const [content = '', condition = '', correctKey = ''] = line.split(',').map((s) => s.trim())
       return {
-        id: `trial_${Date.now()}_${i}`,
+        id: `trial_${Date.now()}_${i}_${Math.floor(Math.random() * 1e6)}`,
         stimulus: { type: 'text', content, url: null },
         duration: 2000,
         fixationDuration: 500,
         validKeys: correctKey ? [correctKey] : ['f', 'j'],
         correctKey: correctKey || null,
-        condition,
+        condition: condition || content || `trial_${i + 1}`,
         feedback: { correct: '', incorrect: '' },
         timeoutMs: null,
         itiMs: 500,
@@ -54,7 +54,7 @@ export default function BlockEditor({ node, onChange }) {
   }
 
   function duplicateTrial(i) {
-    const copy = { ...trials[i], id: `trial_${Date.now()}` }
+    const copy = { ...trials[i], id: `trial_${Date.now()}_${Math.floor(Math.random() * 1e6)}` }
     setTrials([...trials.slice(0, i + 1), copy, ...trials.slice(i + 1)])
   }
 

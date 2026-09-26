@@ -8,7 +8,7 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Paper, Stack, Text } from '@mantine/core'
+import { Group, Paper, Stack, Text } from '@mantine/core'
 import { useBuilderStore } from './store.js'
 import { nodeTypes, NODE_PALETTE } from './nodes/index.js'
 
@@ -16,6 +16,12 @@ const DEFAULT_DATA = {
   block: { label: 'New block', shuffle: true, maxRepeats: 2, repetitions: 1, trials: [] },
   branch: { condition: { metric: 'accuracy', operator: '<', value: 0.7 } },
   loop: { repetitions: 2 },
+}
+
+const NODE_DOT = {
+  block: 'var(--mantine-color-teal-6)',
+  branch: 'var(--mantine-color-orange-6)',
+  loop: 'var(--mantine-color-grape-6)',
 }
 
 function Palette() {
@@ -27,10 +33,19 @@ function Palette() {
     <Stack
       gap="xs"
       p="sm"
-      style={{ width: 140, borderRight: '1px solid var(--mantine-color-gray-3)' }}
+      style={{
+        width: 176,
+        flexShrink: 0,
+        borderRight: '1px solid var(--mantine-color-gray-3)',
+        background: '#fff',
+        overflowY: 'auto',
+      }}
     >
-      <Text size="xs" fw={700} c="dimmed">
-        DRAG TO ADD
+      <Text size="sm" fw={700}>
+        Add nodes
+      </Text>
+      <Text size="xs" c="dimmed">
+        Drag one onto the whiteboard.
       </Text>
       {NODE_PALETTE.map((item) => (
         <Paper
@@ -41,9 +56,23 @@ function Palette() {
           onDragStart={(e) => onDragStart(e, item.type)}
           style={{ cursor: 'grab', textAlign: 'center' }}
         >
-          <Text size="sm">{item.label}</Text>
+          <Group gap="xs" justify="center">
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: NODE_DOT[item.type] ?? 'var(--mantine-color-gray-5)',
+                flexShrink: 0,
+              }}
+            />
+            <Text size="sm">{item.label}</Text>
+          </Group>
         </Paper>
       ))}
+      <Text size="xs" c="dimmed" mt="sm">
+        Connect nodes by dragging from a handle. Select a node to edit it on the right.
+      </Text>
     </Stack>
   )
 }
@@ -87,9 +116,11 @@ function FlowCanvas() {
     [removeNode]
   )
 
+  const hasBlocks = nodes.some((n) => n.type === 'block')
+
   return (
     <div
-      style={{ flex: 1, height: '100%' }}
+      style={{ flex: 1, minHeight: 0, minWidth: 0, background: '#fafaf8', position: 'relative' }}
       onDrop={onDrop}
       onDragOver={onDragOver}
       onKeyDown={onKeyDown}
@@ -106,18 +137,36 @@ function FlowCanvas() {
         onPaneClick={onPaneClick}
         deleteKeyCode={null}
         fitView
+        colorMode="light"
+        proOptions={{ hideAttribution: true }}
       >
-        <Background />
+        <Background variant="dots" gap={24} size={1.6} color="#cfccc0" bgColor="#fafaf8" />
         <Controls />
-        <MiniMap />
+        <MiniMap pannable zoomable />
       </ReactFlow>
+      {!hasBlocks && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+          }}
+        >
+          <Text size="sm" c="dimmed" style={{ background: '#fafaf8', padding: '4px 12px' }}>
+            Drag a Block from the left to start building
+          </Text>
+        </div>
+      )}
     </div>
   )
 }
 
 export default function Canvas() {
   return (
-    <div style={{ display: 'flex', height: '100%' }}>
+    <div style={{ display: 'flex', flex: 1, minHeight: 0, minWidth: 0 }}>
       <Palette />
       <ReactFlowProvider>
         <FlowCanvas />

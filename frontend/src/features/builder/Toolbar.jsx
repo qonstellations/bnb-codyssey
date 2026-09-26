@@ -4,6 +4,7 @@ import { notifications } from '@mantine/notifications'
 import { useBuilderStore } from './store.js'
 import { publishExperiment, updateExperiment } from '../../api/experiments.js'
 import { TEMPLATES } from './templates.js'
+import AiGenerateModal from './AiGenerateModal.jsx'
 
 const AUTOSAVE_MS = 30000
 
@@ -17,18 +18,32 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
   const markSaved = useBuilderStore((s) => s.markSaved)
   const settings = useBuilderStore((s) => s.settings)
   const loadFromJson = useBuilderStore((s) => s.loadFromJson)
+  const select = useBuilderStore((s) => s.select)
+
+  // Returns compiled data, or null after showing errors (selecting the bad node).
+  function compileOrNotify() {
+    const { data, errors, warnings } = compile()
+    if (!data) {
+      const first = errors[0]
+      if (first?.nodeId) select(first.nodeId)
+      notifications.show({ color: 'red', message: first?.message ?? 'Experiment is invalid' })
+      return null
+    }
+    for (const warning of warnings ?? []) {
+      notifications.show({ color: 'yellow', message: warning })
+    }
+    return data
+  }
 
   const [saving, setSaving] = useState(false)
   const [publishOpen, setPublishOpen] = useState(false)
   const [publishResult, setPublishResult] = useState(null)
   const [publishing, setPublishing] = useState(false)
+  const [aiOpen, setAiOpen] = useState(false)
 
   async function save() {
-    const { data, errors } = compile()
-    if (!data) {
-      notifications.show({ color: 'red', message: errors[0]?.message ?? 'Experiment is invalid' })
-      return
-    }
+    const data = compileOrNotify()
+    if (!data) return
     setSaving(true)
     try {
       await updateExperiment(experimentId, { title, draft: data })
@@ -62,21 +77,15 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
   }, [])
 
   function preview() {
-    const { data, errors } = compile()
-    if (!data) {
-      notifications.show({ color: 'red', message: errors[0]?.message ?? 'Experiment is invalid' })
-      return
-    }
+    const data = compileOrNotify()
+    if (!data) return
     sessionStorage.setItem('preview-experiment', JSON.stringify({ ...data, settings }))
     window.open('/run.html?preview=1', '_blank')
   }
 
   async function publish() {
-    const { data, errors } = compile()
-    if (!data) {
-      notifications.show({ color: 'red', message: errors[0]?.message ?? 'Experiment is invalid' })
-      return
-    }
+    const data = compileOrNotify()
+    if (!data) return
     setPublishing(true)
     try {
       await updateExperiment(experimentId, { title, draft: data })
@@ -109,6 +118,9 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
           </ActionIcon>
         </Group>
         <Group>
+          <Button variant="light" onClick={() => setAiOpen(true)}>
+            Generate with AI
+          </Button>
           <Menu>
             <Menu.Target>
               <Button variant="subtle">Templates</Button>
@@ -130,6 +142,8 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
           <Button onClick={() => setPublishOpen(true)}>Publish</Button>
         </Group>
       </Group>
+
+      <AiGenerateModal opened={aiOpen} onClose={() => setAiOpen(false)} onTitleChange={onTitleChange} />
 
       <Modal
         opened={publishOpen}
