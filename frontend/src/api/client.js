@@ -64,8 +64,6 @@ function toError(status, payload) {
  * Single request helper for the whole app.
  * - Prefixes BASE in front of `path` (pass e.g. "/experiments")
  * - Adds JSON headers + `Authorization: Bearer <token>` when a token is set
- * - Unwraps the backend's ApiResponse envelope, so callers always see the
- *   route payload directly (one guard here beats one in every caller)
  * - Throws a readable Error with `.code` / `.status` from the API envelope
  * - On 401: tries POST /auth/refresh once, retries, else calls onUnauthorized
  */
@@ -95,7 +93,8 @@ export async function request(method, path, body, { retry = true } = {}) {
 
   const data = await res.json().catch(() => null);
   if (!res.ok) throw toError(res.status, data);
-  return data?.data ?? data;
+  // Backend wraps every success as ApiResponse { statusCode, data, message, success } — hand callers the payload.
+  return data && typeof data === "object" && "success" in data && "data" in data ? data.data : data;
 }
 
 export const apiBase = BASE;

@@ -3,6 +3,7 @@ import { Scheduler } from './scheduler.js'
 import { waitForResponse } from './input.js'
 import { buildBlockTrials } from './randomizer.js'
 import { walkFlow } from './flow.js'
+import { scoreTrial } from './score.js'
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -68,7 +69,7 @@ async function runTrial(trial, { renderer, scheduler, assets, blockId, trialInde
   const frameResult = await scheduler.run(intendedFrames, () => {
     renderer.clear()
     if (trial.stimulus.type === 'text') {
-      renderer.drawText(trial.stimulus.content)
+      renderer.drawText(trial.stimulus.content, trial.stimulus.color ? { color: trial.stimulus.color } : undefined)
     } else if (trial.stimulus.type === 'image') {
       const img = assets.images.get(trial.stimulus.url)
       if (img) renderer.drawImage(img)
@@ -78,7 +79,7 @@ async function runTrial(trial, { renderer, scheduler, assets, blockId, trialInde
 
   await responsePromise
 
-  const correct = responded ? responded.key === trial.correctKey : null
+  const correct = scoreTrial(trial, responded)
   const rt = responded ? responded.time - frameResult.onsetTime : null
 
   if (trial.feedback && (trial.feedback.correct || trial.feedback.incorrect)) {

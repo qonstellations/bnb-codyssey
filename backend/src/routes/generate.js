@@ -1,38 +1,19 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth, validate, rateLimit } from '../middleware.js';
-import { generateExperimentDraft } from '../services/groq.js';
-import { ApiError, ApiResponse, asyncHandler } from '../utils/index.js';
+import { requireAuth, validate, rateLimit } from '../middlewares/index.js';
+import { generateDraft } from '../controllers/generate.controller.js';
 
 const router = Router();
 
 const generateSchema = z.object({
   prompt: z.string().min(10, 'prompt too short — describe the experiment in more detail').max(2000),
+  answers: z
+    .array(z.object({ question: z.string().max(500), answer: z.string().max(500) }))
+    .max(5)
+    .optional(),
+  forceDraft: z.boolean().optional(),
 });
 
-router.post(
-  '/',
-  requireAuth,
-  rateLimit,
-  validate(generateSchema),
-  asyncHandler(async (req, res) => {
-    const { prompt } = req.body;
-
-    let generated;
-    try {
-      generated = await generateExperimentDraft(prompt);
-    } catch (err) {
-      throw new ApiError(502, `Generation failed: ${err.message}`, [], '', 'GENERATION_FAILED');
-    }
-
-    res.json(
-      new ApiResponse(
-        200,
-        { draft: generated.raw, valid: generated.ok, errors: generated.errors },
-        generated.ok ? 'Draft generated' : 'Draft generated with validation issues'
-      )
-    );
-  })
-);
+router.post('/', requireAuth, rateLimit, validate(generateSchema), generateDraft);
 
 export default router;
