@@ -4,6 +4,7 @@ const BASE = `${String(API_URL ?? "").replace(/\/$/, "")}/api/v1`;
 
 let _token = null;
 let _onUnauthorized = null;
+let _onRefreshed = null;
 
 /** Called by AuthContext to keep the client in sync (avoids a circular import). */
 export function setToken(token) {
@@ -19,7 +20,14 @@ export function setOnUnauthorized(fn) {
   _onUnauthorized = fn || null;
 }
 
-function readRefreshToken() {
+/** Called by AuthContext — invoked with (token, refreshToken) after a silent refresh
+ *  succeeds, so it can persist the rotated refresh token (the backend invalidates the
+ *  old one on every refresh; without this the second refresh in a session 401s). */
+export function setOnRefreshed(fn) {
+  _onRefreshed = fn || null;
+}
+
+export function readRefreshToken() {
   try {
     return localStorage.getItem("refreshToken");
   } catch {
@@ -32,13 +40,14 @@ async function tryRefresh() {
   const res = await fetch(`${BASE}/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body: JSON.stringify(refreshToken ? { refreshToken } : {}),
   });
   if (!res.ok) return null;
   const data = await res.json().catch(() => null);
   const token = data?.token ?? data?.accessToken ?? null;
+  const newRefreshToken = data?.refreshToken ?? null;
   if (token) setToken(token);
+  if (token && _onRefreshed) _onRefreshed(token, newRefreshToken);
   return token;
 }
 
@@ -65,7 +74,6 @@ export async function request(method, path, body, { retry = true } = {}) {
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers,
-    credentials: "include",
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
