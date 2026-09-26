@@ -930,7 +930,8 @@ Update the experiment title, draft, or status. Partial update — only the field
 
 ### `DELETE /api/v1/experiments/:id` 👤
 
-Permanently delete an experiment and **all** its associated sessions, trials, and stimuli.
+Permanently delete an experiment and **all** its associated sessions and trials.
+Stimuli are owner-level and reusable, so they are **not** deleted.
 
 **Path params:**
 
@@ -947,8 +948,7 @@ Permanently delete an experiment and **all** its associated sessions, trials, an
   "deleted": {
     "experiment": true,
     "sessions": 12,
-    "trials": 576,
-    "stimuli": 4
+    "trials": 576
   }
 }
 ```

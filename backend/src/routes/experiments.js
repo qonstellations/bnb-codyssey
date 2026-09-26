@@ -26,8 +26,10 @@ const updateSchema = z
 
 // ─── Helpers ───────────────────────────────────────────────
 
+// ponytail: crypto ids, retry on unique collision if throughput matters
+const SLUG_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 function generateSlug() {
-  return crypto.randomBytes(4).toString('hex');
+  return [...crypto.randomBytes(8)].map((b) => SLUG_ALPHABET[b % 62]).join('');
 }
 
 // ─── GET / ─────────────────────────────────────────────────
@@ -157,13 +159,28 @@ router.post('/:id/publish', requireAuth, ownsExperiment, async (req, res, next) 
       publishedAt: new Date(),
     });
 
-    if (!exp.slug) {
-      exp.slug = generateSlug();
-    }
-
     exp.status = 'active';
     exp.markModified('versions');
-    await exp.save();
+
+    if (!exp.slug) {
+      // Retry on slug collision (unique index) instead of 500ing
+      for (let i = 0; i < 3 && !exp.slug; i++) {
+        exp.slug = generateSlug();
+        try {
+          await exp.save();
+        } catch (err) {
+          if (err?.code === 11000) exp.slug = null;
+          else throw err;
+        }
+      }
+      if (!exp.slug) {
+        return res.status(500).json({
+          error: { code: 'INTERNAL_ERROR', message: 'Could not generate unique slug' },
+        });
+      }
+    } else {
+      await exp.save();
+    }
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 

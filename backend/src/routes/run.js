@@ -61,8 +61,10 @@ const trialsSchema = z.object({
 
 // ─── Helpers ───────────────────────────────────────────────
 
-function generateWithdrawCode() {
-  return crypto.randomBytes(4).toString('hex');
+// ponytail: crypto ids, retry on unique collision if throughput matters
+const CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+function generateCode() {
+  return [...crypto.randomBytes(8)].map((b) => CODE_ALPHABET[b % 62]).join('');
 }
 
 // ─── GET /:slug ────────────────────────────────────────────
@@ -115,12 +117,20 @@ router.post('/:slug/sessions', rateLimit, validate(createSessionSchema), async (
       });
     }
 
-    const session = await Session.create({
-      experimentId: experiment._id,
-      participantId: uuidv4(),
-      deviceInfo: req.body.deviceInfo,
-      withdrawCode: generateWithdrawCode(),
-    });
+    let session;
+    for (let i = 0; i < 3; i++) {
+      try {
+        session = await Session.create({
+          experimentId: experiment._id,
+          participantId: uuidv4(),
+          deviceInfo: req.body.deviceInfo,
+          withdrawCode: generateCode(),
+        });
+        break;
+      } catch (err) {
+        if (err?.code !== 11000 || i === 2) throw err;
+      }
+    }
 
     res.status(201).json({
       sessionId: session._id,
@@ -171,9 +181,9 @@ router.post('/sessions/:sessionId/trials', rateLimit, validate(trialsSchema), as
         error: { code: 'NOT_FOUND', message: 'Session not found' },
       });
     }
-    if (session.status === 'completed') {
+    if (session.status !== 'in_progress') {
       return res.status(409).json({
-        error: { code: 'CONFLICT', message: 'Session is already completed' },
+        error: { code: 'CONFLICT', message: `Session is already ${session.status}` },
       });
     }
 
@@ -198,9 +208,9 @@ router.post('/sessions/:sessionId/complete', rateLimit, async (req, res, next) =
         error: { code: 'NOT_FOUND', message: 'Session not found' },
       });
     }
-    if (session.status === 'completed') {
+    if (session.status !== 'in_progress') {
       return res.status(409).json({
-        error: { code: 'CONFLICT', message: 'Session is already completed' },
+        error: { code: 'CONFLICT', message: `Session is already ${session.status}` },
       });
     }
 
@@ -229,10 +239,12 @@ router.post('/sessions/:sessionId/beacon', rateLimit, async (req, res) => {
 
     const session = await Session.findById(req.params.sessionId);
     if (!session) return res.status(204).end();
+    if (session.status !== 'in_progress') return res.status(204).end();
 
-    // Save any remaining trials
-    if (data.trials?.length) {
-      const docs = data.trials.map((t) => ({ ...t, sessionId: session._id }));
+    // Save any remaining trials (validated — best-effort, drop garbage)
+    const parsed = trialsSchema.safeParse({ trials: data.trials ?? [] });
+    if (parsed.success && parsed.data.trials.length) {
+      const docs = parsed.data.trials.map((t) => ({ ...t, sessionId: session._id }));
       await Trial.insertMany(docs, { ordered: false }).catch(() => {});
     }
 
