@@ -1247,9 +1247,12 @@ Delete a stimulus record and its file from Vercel Blob. Owner-only (server check
 
 ## 6. AI Generation
 
-Turns a plain-English description into a schema-validated experiment draft. The Groq API key
-stays server-side; the model is `llama-3.3-70b-versatile` with a system prompt that pins the
-output to the experiment JSON contract. Rate-limited and owner-authenticated.
+Turns a plain-English description into an experiment built **only from the 6 coded template
+tasks** (`frontend/src/shared/templates`). The model never writes trials: it returns a *recipe*
+that picks library blocks, orders them, and sets repetitions, branches and loops. The backend
+checks the recipe against `services/aiCatalog.js` (repairing up to twice). The client expands it
+with `composeFromTemplates`, so every trial is copied verbatim from the library. The Groq API
+key stays server-side. Owner-authenticated and rate-limited.
 
 ---
 
@@ -1259,7 +1262,7 @@ output to the experiment JSON contract. Rate-limited and owner-authenticated.
 
 ```json
 {
-  "prompt": "A flanker task with 40 trials, arrow keys, 20 second response window"
+  "prompt": "A Stroop task, then Go / No-Go. Repeat practice if accuracy is below 80%."
 }
 ```
 
@@ -1273,7 +1276,18 @@ output to the experiment JSON contract. Rate-limited and owner-authenticated.
 {
   "statusCode": 200,
   "data": {
-    "draft": { "settings": {}, "blocks": [], "branches": [], "loops": [] },
+    "kind": "draft",
+    "title": "Stroop + Go/No-Go",
+    "notes": ["Kept each task's practice with feedback."],
+    "recipe": {
+      "blocks": [
+        { "id": "stroop_practice", "template": "stroop", "block": "practice", "repetitions": 1 },
+        { "id": "stroop_main", "template": "stroop", "block": "main", "repetitions": 1 },
+        { "id": "gng_main", "template": "go-nogo", "block": "main", "repetitions": 1 }
+      ],
+      "branches": [{ "from": "stroop_practice", "to": "stroop_practice", "metric": "accuracy", "operator": "<", "value": 0.8 }],
+      "loops": []
+    },
     "valid": true,
     "errors": []
   },
@@ -1284,9 +1298,10 @@ output to the experiment JSON contract. Rate-limited and owner-authenticated.
 
 | Field | Type | Description |
 |---|---|---|
-| `draft` | `object` | Candidate experiment JSON (goes straight into the builder canvas) |
-| `valid` | `boolean` | Whether the draft passed the shared Zod schema |
-| `errors` | `array` | Zod issues when `valid` is `false` |
+| `recipe` | `object \| null` | Library blocks + branches + loops; `null` when `valid` is `false` |
+| `title`, `notes` | `string`, `string[]` | Suggested title; notes on choices and anything the library can't do |
+| `valid` | `boolean` | Whether the recipe only references existing templates/blocks |
+| `errors` | `string[]` | Recipe problems when `valid` is `false` |
 
 **Errors:**
 
@@ -1294,14 +1309,9 @@ output to the experiment JSON contract. Rate-limited and owner-authenticated.
 |---|---|---|
 | `400` | `VALIDATION_ERROR` | Prompt missing or < 10 chars |
 | `401` | `UNAUTHORIZED` | Missing/invalid access token |
-| `429` | `RATE_LIMITED` | Too many requests |
-| `502` | `GENERATION_FAILED` | Groq call failed or returned non-JSON |
-
-> ⚠️ **Client not yet wired:** `src/api/ai.js` still calls `/ai/generate-experiment` with
-> `{ description }`. Update it to `request("POST", "/generate", { prompt })` and read
-> `data.draft` / `data.valid`.
-
----
+| `429` | `RATE_LIMITED` | Too many requests, or the Groq token-per-minute limit was hit |
+| `502` | `GENERATION_FAILED` | Groq call failed |
+| `503` | `AI_NOT_CONFIGURED` | `GROQ_API_KEY` missing on the server |
 
 ---
 

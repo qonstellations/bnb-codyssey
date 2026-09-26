@@ -215,18 +215,52 @@ export function estimateSeconds(draft) {
   return Math.ceil(ms / 1000)
 }
 
-function entry(id, label, level, category, keys, description, measures, draft) {
+// `example` is a plain-English prompt that makes the AI rebuild exactly this template.
+function entry(id, label, level, category, keys, description, measures, draft, example) {
   const trials = draft.blocks.reduce((n, b) => n + b.trials.length, 0)
-  return { id, label, level, category, keys, description, measures, draft, trials, blocks: draft.blocks.length, seconds: estimateSeconds(draft) }
+  return { id, label, level, category, keys, description, measures, draft, example, trials, blocks: draft.blocks.length, seconds: estimateSeconds(draft) }
 }
 
 export const TEMPLATE_LEVELS = ['Simple', 'Complex']
 
 export const TEMPLATES = [
-  entry('simple-rt', 'Simple reaction time', 'Simple', 'Speed', 'Space', 'Press as soon as a dot appears, after an unpredictable wait.', 'Raw processing speed — the baseline every other task is compared against.', simpleRt),
-  entry('choice-rt', 'Choice reaction time', 'Simple', 'Speed', 'F / J', 'An arrow points left or right; press the matching key.', 'How much slower people get when they must choose between responses.', choiceRt),
-  entry('go-nogo', 'Go / No-Go', 'Simple', 'Inhibition', 'Space', 'Press for O, hold back on X.', 'Response inhibition: how often people fail to stop a prepared press.', goNoGo),
-  entry('stroop', 'Stroop', 'Complex', 'Inhibition', 'R / G / B / Y', 'Name the ink colour of colour words, ignoring what the word says.', 'Interference: how much a conflicting word slows naming the ink colour.', stroop),
-  entry('2-back', '2-back working memory', 'Complex', 'Memory', 'F / J', 'Letters stream by; spot the ones that match the letter two steps back.', 'Working memory: holding and updating a moving sequence in mind.', twoBack),
-  entry('task-switch', 'Task switching', 'Complex', 'Flexibility', 'F / J', 'Judge a digit as odd/even or low/high, depending on the question shown.', 'Switch cost: the slowdown when the rule changes from one trial to the next.', taskSwitch),
+  entry('simple-rt', 'Simple reaction time', 'Simple', 'Speed', 'Space', 'Press as soon as a dot appears, after an unpredictable wait.', 'Raw processing speed — the baseline every other task is compared against.', simpleRt, 'Simple reaction time task: a dot appears in the centre after a random wait of 600–1400 ms and the participant presses SPACE as fast as possible. One main block of 5 trials.'),
+  entry('choice-rt', 'Choice reaction time', 'Simple', 'Speed', 'F / J', 'An arrow points left or right; press the matching key.', 'How much slower people get when they must choose between responses.', choiceRt, 'Choice reaction time task: an arrow points left or right; press F for left and J for right. A 2-trial practice block with feedback that repeats if accuracy is below 70%, then a 4-trial main block.'),
+  entry('go-nogo', 'Go / No-Go', 'Simple', 'Inhibition', 'Space', 'Press for O, hold back on X.', 'Response inhibition: how often people fail to stop a prepared press.', goNoGo, 'Go / No-Go task: press SPACE when O appears and do nothing when X appears (25% no-go). A 2-trial practice block with feedback that repeats if accuracy is below 70%, then an 8-trial main block.'),
+  entry('stroop', 'Stroop', 'Complex', 'Inhibition', 'R / G / B / Y', 'Name the ink colour of colour words, ignoring what the word says.', 'Interference: how much a conflicting word slows naming the ink colour.', stroop, 'Stroop task: colour words shown in congruent or incongruent ink; respond to the ink colour with R, G, B or Y. A 2-trial practice block with feedback that repeats if accuracy is below 70%, then a 4-trial main block.'),
+  entry('2-back', '2-back working memory', 'Complex', 'Memory', 'F / J', 'Letters stream by; spot the ones that match the letter two steps back.', 'Working memory: holding and updating a moving sequence in mind.', twoBack, '2-back working memory task: letters appear one at a time in a fixed order; press J if the letter matches the one two back, otherwise F. One 7-trial block with feedback.'),
+  entry('task-switch', 'Task switching', 'Complex', 'Flexibility', 'F / J', 'Judge a digit as odd/even or low/high, depending on the question shown.', 'Switch cost: the slowdown when the rule changes from one trial to the next.', taskSwitch, 'Task switching: a digit is judged ODD/EVEN or LOW/HIGH depending on the cue shown, using F and J. A 2-trial practice block with feedback, then a 4-trial mixed block.'),
 ]
+
+const TEMPLATE_BY_ID = Object.fromEntries(TEMPLATES.map((t) => [t.id, t]))
+
+// Expands an AI recipe ({ blocks: [{ id, template, block, repetitions, label? }], branches, loops },
+// checked server-side by checkRecipe) into a draft whose trials are copied verbatim from the library.
+export function composeFromTemplates(recipe) {
+  const used = [...new Set(recipe.blocks.map((b) => b.template))].map((id) => TEMPLATE_BY_ID[id])
+  const blocks = recipe.blocks.map((b) => {
+    const tpl = TEMPLATE_BY_ID[b.template]
+    const src = tpl.draft.blocks.find((x) => x.id === b.block)
+    return {
+      ...structuredClone(src),
+      id: b.id,
+      label: b.label ?? (used.length > 1 ? `${tpl.label} · ${src.label}` : src.label),
+      repetitions: b.repetitions ?? 1,
+      trials: src.trials.map((t, n) => ({ ...structuredClone(t), id: `${b.id}_t${n + 1}` })),
+    }
+  })
+  return {
+    settings: {
+      ...structuredClone(used[0].draft.settings),
+      instructionsText: used.map((t) => t.draft.settings.instructionsText).join('\n\n'),
+    },
+    blocks,
+    branches: recipe.branches.map((br, i) => ({
+      id: `br_${i + 1}`,
+      from: br.from,
+      to: br.to,
+      condition: { metric: br.metric, operator: br.operator, value: br.value },
+    })),
+    loops: recipe.loops.map((l, i) => ({ id: `loop_${i + 1}`, blockId: l.blockId, repetitions: l.repetitions })),
+  }
+}
