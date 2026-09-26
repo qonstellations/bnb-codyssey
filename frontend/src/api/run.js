@@ -11,24 +11,25 @@ export function startSession(slug, deviceInfo) {
   return request("POST", `/run/${slug}/sessions`, { deviceInfo });
 }
 
-export function updateSession(sessionId, { calibration, status } = {}) {
-  const body = {};
+// `token` comes from startSession; the backend rejects session writes without it.
+export function updateSession(sessionId, token, { calibration, status } = {}) {
+  const body = { token };
   if (calibration !== undefined) body.calibration = calibration;
   if (status !== undefined) body.status = status;
   return request("PATCH", `/run/sessions/${sessionId}`, body);
 }
 
-export function uploadTrials(sessionId, trials) {
-  return request("POST", `/run/sessions/${sessionId}/trials`, { trials });
+export function uploadTrials(sessionId, token, trials) {
+  return request("POST", `/run/sessions/${sessionId}/trials`, { token, trials });
 }
 
-export function completeSession(sessionId) {
-  return request("POST", `/run/sessions/${sessionId}/complete`);
+export function completeSession(sessionId, token, engagement) {
+  return request("POST", `/run/sessions/${sessionId}/complete`, { token, engagement });
 }
 
 /** Last-chance save on tab close. Returns the sendBeacon boolean. */
-export function beacon(sessionId, { trials, status } = {}) {
-  const body = {};
+export function beacon(sessionId, token, { trials, status } = {}) {
+  const body = { token };
   if (trials !== undefined) body.trials = trials;
   if (status !== undefined) body.status = status;
   const url = `${apiBase}/run/sessions/${sessionId}/beacon`;

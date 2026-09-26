@@ -23,6 +23,7 @@ const trialSchema = new mongoose.Schema(
   { timestamps: { createdAt: true, updatedAt: false } }
 );
 
-trialSchema.index({ sessionId: 1 });
+// trialIndex is session-global, so this also makes retried uploads idempotent.
+trialSchema.index({ sessionId: 1, trialIndex: 1 }, { unique: true });
 
 export default mongoose.model('Trial', trialSchema);

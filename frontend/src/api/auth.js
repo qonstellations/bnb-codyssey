@@ -17,6 +17,11 @@ export function logout() {
   return request("POST", "/auth/logout", refreshToken ? { refreshToken } : {});
 }
 
+/** Permanently deletes the account and everything it owns (experiments, participant data, stimuli). */
+export function deleteAccount(password) {
+  return request("DELETE", "/auth/me", { password });
+}
+
 export function getMe() {
   return request("GET", "/auth/me");
 }

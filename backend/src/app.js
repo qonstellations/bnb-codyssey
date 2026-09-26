@@ -13,7 +13,20 @@ import { ApiResponse } from './utils/index.js';
 export const app = express();
 
 // ─── Global middleware ─────────────────────────────────────
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+// Production is locked to CORS_ORIGIN (comma-separated) or FRONTEND_URL; '*' is a dev convenience only.
+const allowed = process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? process.env.FRONTEND_URL : '');
+const corsOrigin = allowed ? allowed.split(',').map((o) => o.trim()) : '*';
+app.use(cors({ origin: corsOrigin }));
+// ponytail: the few headers a JSON API needs; add helmet if this ever serves HTML.
+app.use((_req, res, next) => {
+  res.set({
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer',
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  });
+  next();
+});
 app.use(express.json({ limit: '5mb' }));
 app.use(express.text({ type: 'text/plain' })); // for beacon route
 

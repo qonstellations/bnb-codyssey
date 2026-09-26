@@ -4,24 +4,18 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-export function createUploader({ sessionId, maxRetries = 3, retryDelayMs = 1000 }) {
-  let flushing = false
-
+export function createUploader({ sessionId, token, maxRetries = 3, retryDelayMs = 1000 }) {
+  // Callers serialize flushes (runtime/main.js chains them); never drop a batch here.
   async function flush(trials) {
-    if (!trials.length || flushing) return
-    flushing = true
-    try {
-      for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-          await uploadTrials(sessionId, trials)
-          return
-        } catch (err) {
-          if (attempt === maxRetries) throw err
-          await wait(retryDelayMs)
-        }
+    if (!trials.length) return
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        await uploadTrials(sessionId, token, trials)
+        return
+      } catch (err) {
+        if (attempt === maxRetries) throw err
+        await wait(retryDelayMs)
       }
-    } finally {
-      flushing = false
     }
   }
 
@@ -29,7 +23,7 @@ export function createUploader({ sessionId, maxRetries = 3, retryDelayMs = 1000 
   function attachUnloadHandlers(getPendingTrials) {
     const handler = () => {
       const pending = getPendingTrials()
-      if (pending.length) beacon(sessionId, { trials: pending, status: 'abandoned' })
+      if (pending.length) beacon(sessionId, token, { trials: pending, status: 'abandoned' })
     }
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') handler()
