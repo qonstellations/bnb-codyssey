@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import User from '../models/User.js';
 import { requireAuth, validate } from '../middleware.js';
+import { asyncHandler, ApiError, ApiResponse } from '../utils/index.js';
 
 const router = Router();
 
@@ -41,15 +42,15 @@ function hashToken(token) {
 
 // ─── POST /register ────────────────────────────────────────
 
-router.post('/register', validate(registerSchema), async (req, res, next) => {
-  try {
+router.post(
+  '/register',
+  validate(registerSchema),
+  asyncHandler(async (req, res) => {
     const { name, email, password } = req.body;
 
     const existing = await User.findOne({ email });
     if (existing) {
-      return res.status(409).json({
-        error: { code: 'CONFLICT', message: 'Email already registered' },
-      });
+      throw new ApiError(409, 'Email already registered', [], '', 'CONFLICT');
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -61,23 +62,29 @@ router.post('/register', validate(registerSchema), async (req, res, next) => {
     user.refreshToken = hashToken(refreshToken);
     await user.save();
 
-    res.status(201).json({ user: user.toSafeJSON(), accessToken, refreshToken });
-  } catch (err) {
-    next(err);
-  }
-});
+    res
+      .status(201)
+      .json(
+        new ApiResponse(
+          201,
+          { user: user.toSafeJSON(), accessToken, refreshToken },
+          'User registered successfully'
+        )
+      );
+  })
+);
 
 // ─── POST /login ───────────────────────────────────────────
 
-router.post('/login', validate(loginSchema), async (req, res, next) => {
-  try {
+router.post(
+  '/login',
+  validate(loginSchema),
+  asyncHandler(async (req, res) => {
     const { email, password } = req.body;
 
     const user = await User.findOne({ email });
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-      return res.status(401).json({
-        error: { code: 'UNAUTHORIZED', message: 'Wrong email or password' },
-      });
+      throw new ApiError(401, 'Wrong email or password', [], '', 'UNAUTHORIZED');
     }
 
     const accessToken = generateAccessToken(user._id.toString());
@@ -86,32 +93,34 @@ router.post('/login', validate(loginSchema), async (req, res, next) => {
     user.refreshToken = hashToken(refreshToken);
     await user.save();
 
-    res.json({ user: user.toSafeJSON(), accessToken, refreshToken });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.json(
+      new ApiResponse(
+        200,
+        { user: user.toSafeJSON(), accessToken, refreshToken },
+        'Login successful'
+      )
+    );
+  })
+);
 
 // ─── POST /refresh ─────────────────────────────────────────
 
-router.post('/refresh', validate(refreshSchema), async (req, res, next) => {
-  try {
+router.post(
+  '/refresh',
+  validate(refreshSchema),
+  asyncHandler(async (req, res) => {
     const { refreshToken } = req.body;
 
     let payload;
     try {
       payload = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
     } catch {
-      return res.status(401).json({
-        error: { code: 'UNAUTHORIZED', message: 'Invalid or expired refresh token' },
-      });
+      throw new ApiError(401, 'Invalid or expired refresh token', [], '', 'UNAUTHORIZED');
     }
 
     const user = await User.findById(payload.userId);
     if (!user || user.refreshToken !== hashToken(refreshToken)) {
-      return res.status(401).json({
-        error: { code: 'UNAUTHORIZED', message: 'Invalid or expired refresh token' },
-      });
+      throw new ApiError(401, 'Invalid or expired refresh token', [], '', 'UNAUTHORIZED');
     }
 
     // Rotate: issue new pair, invalidate old
@@ -121,37 +130,41 @@ router.post('/refresh', validate(refreshSchema), async (req, res, next) => {
     user.refreshToken = hashToken(newRefreshToken);
     await user.save();
 
-    res.json({ accessToken: newAccessToken, refreshToken: newRefreshToken });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.json(
+      new ApiResponse(
+        200,
+        { accessToken: newAccessToken, refreshToken: newRefreshToken },
+        'Tokens refreshed successfully'
+      )
+    );
+  })
+);
 
 // ─── POST /logout ──────────────────────────────────────────
 
-router.post('/logout', requireAuth, validate(refreshSchema), async (req, res, next) => {
-  try {
+router.post(
+  '/logout',
+  requireAuth,
+  validate(refreshSchema),
+  asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(req.userId, { refreshToken: null });
-    res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.json(new ApiResponse(200, { ok: true }, 'Logged out successfully'));
+  })
+);
 
 // ─── GET /me ───────────────────────────────────────────────
 
-router.get('/me', requireAuth, async (req, res, next) => {
-  try {
+router.get(
+  '/me',
+  requireAuth,
+  asyncHandler(async (req, res) => {
     const user = await User.findById(req.userId);
     if (!user) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'User not found' },
-      });
+      throw new ApiError(404, 'User not found', [], '', 'NOT_FOUND');
     }
-    res.json({ user: user.toSafeJSON() });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.json(new ApiResponse(200, { user: user.toSafeJSON() }, 'User profile retrieved successfully'));
+  })
+);
 
 export default router;
+

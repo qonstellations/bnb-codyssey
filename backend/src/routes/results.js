@@ -3,6 +3,7 @@ import { z } from 'zod';
 import Session from '../models/Session.js';
 import Trial from '../models/Trial.js';
 import { requireAuth, ownsExperiment, validate } from '../middleware.js';
+import { asyncHandler, ApiError, ApiResponse } from '../utils/index.js';
 
 const router = Router();
 
@@ -15,8 +16,11 @@ const excludeSchema = z.object({
 // ─── GET /:experimentId/summary ────────────────────────────
 // Aggregated stats: participants, completion rate, mean RT, accuracy.
 
-router.get('/:experimentId/summary', requireAuth, ownsExperiment, async (req, res, next) => {
-  try {
+router.get(
+  '/:experimentId/summary',
+  requireAuth,
+  ownsExperiment,
+  asyncHandler(async (req, res) => {
     const expId = req.experiment._id;
 
     const sessions = await Session.find({ experimentId: expId });
@@ -48,28 +52,35 @@ router.get('/:experimentId/summary', requireAuth, ownsExperiment, async (req, re
       ? scores.reduce((a, b) => a + b, 0) / scores.length
       : 0;
 
-    res.json({
-      summary: {
-        totalSessions: total,
-        completed,
-        abandoned,
-        excluded,
-        completionRate: total ? Math.round((completed / total) * 1000) / 1000 : 0,
-        meanRt: Math.round(meanRt * 10) / 10,
-        accuracy: Math.round(accuracy * 1000) / 1000,
-        meanTimingScore: Math.round(meanTimingScore * 10) / 10,
-      },
-    });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.json(
+      new ApiResponse(
+        200,
+        {
+          summary: {
+            totalSessions: total,
+            completed,
+            abandoned,
+            excluded,
+            completionRate: total ? Math.round((completed / total) * 1000) / 1000 : 0,
+            meanRt: Math.round(meanRt * 10) / 10,
+            accuracy: Math.round(accuracy * 1000) / 1000,
+            meanTimingScore: Math.round(meanTimingScore * 10) / 10,
+          },
+        },
+        'Summary retrieved successfully'
+      )
+    );
+  })
+);
 
 // ─── GET /:experimentId/sessions ───────────────────────────
 // List sessions with computed trialCount (no trial-level data).
 
-router.get('/:experimentId/sessions', requireAuth, ownsExperiment, async (req, res, next) => {
-  try {
+router.get(
+  '/:experimentId/sessions',
+  requireAuth,
+  ownsExperiment,
+  asyncHandler(async (req, res) => {
     const sessions = await Session.find({ experimentId: req.experiment._id });
     const sessionIds = sessions.map((s) => s._id);
 
@@ -87,34 +98,31 @@ router.get('/:experimentId/sessions', requireAuth, ownsExperiment, async (req, r
       trialCount: countMap[s._id.toString()] || 0,
     }));
 
-    res.json({ sessions: result });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.json(new ApiResponse(200, { sessions: result }, 'Sessions retrieved successfully'));
+  })
+);
 
 // ─── GET /:experimentId/sessions/:sessionId ────────────────
 // Single session + full trial-level data.
 
-router.get('/:experimentId/sessions/:sessionId', requireAuth, ownsExperiment, async (req, res, next) => {
-  try {
+router.get(
+  '/:experimentId/sessions/:sessionId',
+  requireAuth,
+  ownsExperiment,
+  asyncHandler(async (req, res) => {
     const session = await Session.findOne({
       _id: req.params.sessionId,
       experimentId: req.experiment._id,
     });
 
     if (!session) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Session not found' },
-      });
+      throw new ApiError(404, 'Session not found', [], '', 'NOT_FOUND');
     }
 
     const trials = await Trial.find({ sessionId: session._id }).sort({ trialIndex: 1 });
-    res.json({ session, trials });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.json(new ApiResponse(200, { session, trials }, 'Session retrieved successfully'));
+  })
+);
 
 // ─── PATCH /:experimentId/sessions/:sessionId ──────────────
 // Toggle exclude flag on a session.
@@ -124,38 +132,39 @@ router.patch(
   requireAuth,
   ownsExperiment,
   validate(excludeSchema),
-  async (req, res, next) => {
-    try {
-      const session = await Session.findOneAndUpdate(
-        { _id: req.params.sessionId, experimentId: req.experiment._id },
-        { excluded: req.body.excluded },
-        { new: true }
-      );
+  asyncHandler(async (req, res) => {
+    const session = await Session.findOneAndUpdate(
+      { _id: req.params.sessionId, experimentId: req.experiment._id },
+      { excluded: req.body.excluded },
+      { new: true }
+    );
 
-      if (!session) {
-        return res.status(404).json({
-          error: { code: 'NOT_FOUND', message: 'Session not found' },
-        });
-      }
-
-      res.json({ session: { _id: session._id, excluded: session.excluded } });
-    } catch (err) {
-      next(err);
+    if (!session) {
+      throw new ApiError(404, 'Session not found', [], '', 'NOT_FOUND');
     }
-  }
+
+    res.json(
+      new ApiResponse(
+        200,
+        { session: { _id: session._id, excluded: session.excluded } },
+        'Session updated successfully'
+      )
+    );
+  })
 );
 
 // ─── GET /:experimentId/export ─────────────────────────────
 // Download all data as flat CSV or JSON. One row per trial,
 // session fields denormalized.
 
-router.get('/:experimentId/export', requireAuth, ownsExperiment, async (req, res, next) => {
-  try {
+router.get(
+  '/:experimentId/export',
+  requireAuth,
+  ownsExperiment,
+  asyncHandler(async (req, res) => {
     const format = req.query.format;
     if (format !== 'csv' && format !== 'json') {
-      return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: 'format query param must be "csv" or "json"' },
-      });
+      throw new ApiError(400, 'format query param must be "csv" or "json"', [], '', 'VALIDATION_ERROR');
     }
 
     const sessions = await Session.find({ experimentId: req.experiment._id });
@@ -214,13 +223,32 @@ router.get('/:experimentId/export', requireAuth, ownsExperiment, async (req, res
 
     // CSV
     const columns = [
-      'sessionId', 'participantId', 'status', 'excluded',
-      'browser', 'os', 'screenW', 'screenH', 'pixelRatio',
-      'refreshRate', 'jitter', 'timingScore', 'startedAt', 'completedAt',
-      'trialIndex', 'blockId', 'condition',
-      'stimulusType', 'stimulusContent', 'stimulusUrl',
-      'response', 'correct', 'rt',
-      'framesIntended', 'framesActual', 'framesDropped',
+      'sessionId',
+      'participantId',
+      'status',
+      'excluded',
+      'browser',
+      'os',
+      'screenW',
+      'screenH',
+      'pixelRatio',
+      'refreshRate',
+      'jitter',
+      'timingScore',
+      'startedAt',
+      'completedAt',
+      'trialIndex',
+      'blockId',
+      'condition',
+      'stimulusType',
+      'stimulusContent',
+      'stimulusUrl',
+      'response',
+      'correct',
+      'rt',
+      'framesIntended',
+      'framesActual',
+      'framesDropped',
     ];
 
     const csvHeader = columns.join(',');
@@ -241,9 +269,8 @@ router.get('/:experimentId/export', requireAuth, ownsExperiment, async (req, res
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
     res.send([csvHeader, ...csvRows].join('\n'));
-  } catch (err) {
-    next(err);
-  }
-});
+  })
+);
 
 export default router;
+

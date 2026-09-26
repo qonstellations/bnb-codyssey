@@ -6,6 +6,7 @@ import Experiment from '../models/Experiment.js';
 import Session from '../models/Session.js';
 import Trial from '../models/Trial.js';
 import { rateLimit, validate } from '../middleware.js';
+import { asyncHandler, ApiError, ApiResponse } from '../utils/index.js';
 
 const router = Router();
 
@@ -68,51 +69,52 @@ function generateWithdrawCode() {
 // ─── GET /:slug ────────────────────────────────────────────
 // Fetch published experiment JSON for the timing engine.
 
-router.get('/:slug', rateLimit, async (req, res, next) => {
-  try {
+router.get(
+  '/:slug',
+  rateLimit,
+  asyncHandler(async (req, res) => {
     const experiment = await Experiment.findOne({ slug: req.params.slug });
 
     if (!experiment) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Experiment not found' },
-      });
+      throw new ApiError(404, 'Experiment not found', [], '', 'NOT_FOUND');
     }
     if (experiment.status === 'closed') {
-      return res.status(410).json({
-        error: { code: 'GONE', message: 'This experiment is no longer accepting participants' },
-      });
+      throw new ApiError(410, 'This experiment is no longer accepting participants', [], '', 'GONE');
     }
 
     const latest = experiment.versions[experiment.versions.length - 1];
-    res.json({
-      experiment: {
-        _id: experiment._id,
-        title: experiment.title,
-        version: latest?.version ?? 0,
-        snapshot: latest?.snapshot ?? {},
-      },
-    });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.json(
+      new ApiResponse(
+        200,
+        {
+          experiment: {
+            _id: experiment._id,
+            title: experiment.title,
+            version: latest?.version ?? 0,
+            snapshot: latest?.snapshot ?? {},
+          },
+        },
+        'Experiment fetched successfully'
+      )
+    );
+  })
+);
 
 // ─── POST /:slug/sessions ──────────────────────────────────
 // Start a new participant session.
 
-router.post('/:slug/sessions', rateLimit, validate(createSessionSchema), async (req, res, next) => {
-  try {
+router.post(
+  '/:slug/sessions',
+  rateLimit,
+  validate(createSessionSchema),
+  asyncHandler(async (req, res) => {
     const experiment = await Experiment.findOne({ slug: req.params.slug });
 
     if (!experiment) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Experiment not found' },
-      });
+      throw new ApiError(404, 'Experiment not found', [], '', 'NOT_FOUND');
     }
     if (experiment.status === 'closed') {
-      return res.status(410).json({
-        error: { code: 'GONE', message: 'This experiment is no longer accepting participants' },
-      });
+      throw new ApiError(410, 'This experiment is no longer accepting participants', [], '', 'GONE');
     }
 
     const session = await Session.create({
@@ -122,97 +124,91 @@ router.post('/:slug/sessions', rateLimit, validate(createSessionSchema), async (
       withdrawCode: generateWithdrawCode(),
     });
 
-    res.status(201).json({
-      sessionId: session._id,
-      withdrawCode: session.withdrawCode,
-    });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.status(201).json(
+      new ApiResponse(
+        201,
+        {
+          sessionId: session._id,
+          withdrawCode: session.withdrawCode,
+        },
+        'Session started successfully'
+      )
+    );
+  })
+);
 
 // ─── PATCH /sessions/:sessionId ────────────────────────────
 // Update calibration or mark as abandoned. Only while in_progress.
 
-router.patch('/sessions/:sessionId', rateLimit, validate(patchSessionSchema), async (req, res, next) => {
-  try {
+router.patch(
+  '/sessions/:sessionId',
+  rateLimit,
+  validate(patchSessionSchema),
+  asyncHandler(async (req, res) => {
     const session = await Session.findById(req.params.sessionId);
 
     if (!session) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Session not found' },
-      });
+      throw new ApiError(404, 'Session not found', [], '', 'NOT_FOUND');
     }
     if (session.status !== 'in_progress') {
-      return res.status(409).json({
-        error: { code: 'CONFLICT', message: `Session is already ${session.status}` },
-      });
+      throw new ApiError(409, `Session is already ${session.status}`, [], '', 'CONFLICT');
     }
 
     if (req.body.calibration) session.calibration = req.body.calibration;
     if (req.body.status) session.status = req.body.status;
     await session.save();
 
-    res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.json(new ApiResponse(200, { ok: true }, 'Session updated successfully'));
+  })
+);
 
 // ─── POST /sessions/:sessionId/trials ──────────────────────
 // Upload a batch of trial data (called between blocks).
 
-router.post('/sessions/:sessionId/trials', rateLimit, validate(trialsSchema), async (req, res, next) => {
-  try {
+router.post(
+  '/sessions/:sessionId/trials',
+  rateLimit,
+  validate(trialsSchema),
+  asyncHandler(async (req, res) => {
     const session = await Session.findById(req.params.sessionId);
 
     if (!session) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Session not found' },
-      });
+      throw new ApiError(404, 'Session not found', [], '', 'NOT_FOUND');
     }
     if (session.status === 'completed') {
-      return res.status(409).json({
-        error: { code: 'CONFLICT', message: 'Session is already completed' },
-      });
+      throw new ApiError(409, 'Session is already completed', [], '', 'CONFLICT');
     }
 
     const docs = req.body.trials.map((t) => ({ ...t, sessionId: session._id }));
     const result = await Trial.insertMany(docs);
 
-    res.status(201).json({ inserted: result.length });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.status(201).json(new ApiResponse(201, { inserted: result.length }, 'Trials uploaded successfully'));
+  })
+);
 
 // ─── POST /sessions/:sessionId/complete ────────────────────
 // Mark session as finished, return withdraw code for display.
 
-router.post('/sessions/:sessionId/complete', rateLimit, async (req, res, next) => {
-  try {
+router.post(
+  '/sessions/:sessionId/complete',
+  rateLimit,
+  asyncHandler(async (req, res) => {
     const session = await Session.findById(req.params.sessionId);
 
     if (!session) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Session not found' },
-      });
+      throw new ApiError(404, 'Session not found', [], '', 'NOT_FOUND');
     }
     if (session.status === 'completed') {
-      return res.status(409).json({
-        error: { code: 'CONFLICT', message: 'Session is already completed' },
-      });
+      throw new ApiError(409, 'Session is already completed', [], '', 'CONFLICT');
     }
 
     session.status = 'completed';
     session.completedAt = new Date();
     await session.save();
 
-    res.json({ withdrawCode: session.withdrawCode });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.json(new ApiResponse(200, { withdrawCode: session.withdrawCode }, 'Session completed successfully'));
+  })
+);
 
 // ─── POST /sessions/:sessionId/beacon ──────────────────────
 // Last-chance save via sendBeacon on tab close.
@@ -250,25 +246,30 @@ router.post('/sessions/:sessionId/beacon', rateLimit, async (req, res) => {
 // ─── DELETE /withdraw/:withdrawCode ────────────────────────
 // Participant withdraws → delete session + all its trials.
 
-router.delete('/withdraw/:withdrawCode', rateLimit, async (req, res, next) => {
-  try {
+router.delete(
+  '/withdraw/:withdrawCode',
+  rateLimit,
+  asyncHandler(async (req, res) => {
     const session = await Session.findOne({ withdrawCode: req.params.withdrawCode });
 
     if (!session) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Invalid withdraw code' },
-      });
+      throw new ApiError(404, 'Invalid withdraw code', [], '', 'NOT_FOUND');
     }
 
     const trialResult = await Trial.deleteMany({ sessionId: session._id });
     await Session.findByIdAndDelete(session._id);
 
-    res.json({
-      deleted: { sessions: 1, trials: trialResult.deletedCount },
-    });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.json(
+      new ApiResponse(
+        200,
+        {
+          deleted: { sessions: 1, trials: trialResult.deletedCount },
+        },
+        'Session withdrawn successfully'
+      )
+    );
+  })
+);
 
 export default router;
+

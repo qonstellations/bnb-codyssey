@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import Experiment from './models/Experiment.js';
+import { ApiError, asyncHandler } from './utils/index.js';
 
 // ─── requireAuth ───────────────────────────────────────────
 // Verifies JWT access token from Authorization header.
@@ -7,9 +8,7 @@ import Experiment from './models/Experiment.js';
 export function requireAuth(req, res, next) {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
-    return res.status(401).json({
-      error: { code: 'UNAUTHORIZED', message: 'Missing access token' },
-    });
+    throw new ApiError(401, 'Missing access token', [], '', 'UNAUTHORIZED');
   }
 
   try {
@@ -17,9 +16,7 @@ export function requireAuth(req, res, next) {
     req.userId = payload.userId;
     next();
   } catch {
-    return res.status(401).json({
-      error: { code: 'UNAUTHORIZED', message: 'Invalid or expired access token' },
-    });
+    throw new ApiError(401, 'Invalid or expired access token', [], '', 'UNAUTHORIZED');
   }
 }
 
@@ -27,30 +24,25 @@ export function requireAuth(req, res, next) {
 // Loads experiment by :id or :experimentId param, verifies the
 // authenticated user owns it. Sets req.experiment for the handler.
 // Must run AFTER requireAuth.
-export async function ownsExperiment(req, res, next) {
+export const ownsExperiment = asyncHandler(async (req, res, next) => {
+  const id = req.params.id || req.params.experimentId;
+  let experiment;
   try {
-    const id = req.params.id || req.params.experimentId;
-    const experiment = await Experiment.findById(id);
-
-    if (!experiment) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Experiment not found' },
-      });
-    }
-    if (experiment.owner.toString() !== req.userId) {
-      return res.status(403).json({
-        error: { code: 'FORBIDDEN', message: 'You do not own this experiment' },
-      });
-    }
-
-    req.experiment = experiment;
-    next();
+    experiment = await Experiment.findById(id);
   } catch {
-    return res.status(404).json({
-      error: { code: 'NOT_FOUND', message: 'Experiment not found' },
-    });
+    throw new ApiError(404, 'Experiment not found', [], '', 'NOT_FOUND');
   }
-}
+
+  if (!experiment) {
+    throw new ApiError(404, 'Experiment not found', [], '', 'NOT_FOUND');
+  }
+  if (experiment.owner.toString() !== req.userId) {
+    throw new ApiError(403, 'You do not own this experiment', [], '', 'FORBIDDEN');
+  }
+
+  req.experiment = experiment;
+  next();
+});
 
 // ─── validate ──────────────────────────────────────────────
 // Factory: validate(zodSchema) returns middleware that validates
@@ -62,9 +54,7 @@ export function validate(schema) {
       const message = result.error.issues
         .map((i) => `${i.path.join('.')}: ${i.message}`)
         .join('; ');
-      return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message },
-      });
+      throw new ApiError(400, message, result.error.issues, '', 'VALIDATION_ERROR');
     }
     req.body = result.data;
     next();
@@ -92,7 +82,7 @@ async function getLimiter() {
   return limiter;
 }
 
-export async function rateLimit(req, res, next) {
+export const rateLimit = asyncHandler(async (req, res, next) => {
   try {
     const rl = await getLimiter();
     if (!rl) return next();
@@ -100,12 +90,12 @@ export async function rateLimit(req, res, next) {
     const ip = req.headers['x-forwarded-for'] || req.ip;
     const { success } = await rl.limit(ip);
     if (!success) {
-      return res.status(429).json({
-        error: { code: 'RATE_LIMITED', message: 'Too many requests' },
-      });
+      throw new ApiError(429, 'Too many requests', [], '', 'RATE_LIMITED');
     }
     next();
-  } catch {
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
     next(); // don't block requests if rate limiter errors
   }
-}
+});
+

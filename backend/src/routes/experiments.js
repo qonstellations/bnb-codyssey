@@ -5,6 +5,7 @@ import Experiment from '../models/Experiment.js';
 import Session from '../models/Session.js';
 import Trial from '../models/Trial.js';
 import { requireAuth, ownsExperiment, validate } from '../middleware.js';
+import { asyncHandler, ApiError, ApiResponse } from '../utils/index.js';
 
 const router = Router();
 
@@ -33,46 +34,51 @@ function generateSlug() {
 // ─── GET / ─────────────────────────────────────────────────
 // List all experiments owned by the authenticated researcher.
 
-router.get('/', requireAuth, async (req, res, next) => {
-  try {
+router.get(
+  '/',
+  requireAuth,
+  asyncHandler(async (req, res) => {
     const experiments = await Experiment.find({ owner: req.userId })
       .select('title status slug createdAt updatedAt')
       .sort({ updatedAt: -1 });
 
-    res.json({ experiments });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.json(new ApiResponse(200, { experiments }, 'Experiments retrieved successfully'));
+  })
+);
 
 // ─── POST / ────────────────────────────────────────────────
 // Create a new experiment with an empty draft.
 
-router.post('/', requireAuth, validate(createSchema), async (req, res, next) => {
-  try {
+router.post(
+  '/',
+  requireAuth,
+  validate(createSchema),
+  asyncHandler(async (req, res) => {
     const experiment = await Experiment.create({
       owner: req.userId,
       title: req.body.title || 'Untitled Experiment',
     });
 
-    res.status(201).json({ experiment });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.status(201).json(new ApiResponse(201, { experiment }, 'Experiment created successfully'));
+  })
+);
 
 // ─── GET /:id ──────────────────────────────────────────────
 // Get full experiment (draft + versions).
 
 router.get('/:id', requireAuth, ownsExperiment, (req, res) => {
-  res.json({ experiment: req.experiment });
+  res.json(new ApiResponse(200, { experiment: req.experiment }, 'Experiment retrieved successfully'));
 });
 
 // ─── PUT /:id ──────────────────────────────────────────────
 // Partial update: title, draft, and/or status.
 
-router.put('/:id', requireAuth, ownsExperiment, validate(updateSchema), async (req, res, next) => {
-  try {
+router.put(
+  '/:id',
+  requireAuth,
+  ownsExperiment,
+  validate(updateSchema),
+  asyncHandler(async (req, res) => {
     const { title, draft, status } = req.body;
     const exp = req.experiment;
 
@@ -84,17 +90,18 @@ router.put('/:id', requireAuth, ownsExperiment, validate(updateSchema), async (r
     if (status !== undefined) exp.status = status;
 
     await exp.save();
-    res.json({ experiment: exp });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.json(new ApiResponse(200, { experiment: exp }, 'Experiment updated successfully'));
+  })
+);
 
 // ─── DELETE /:id ───────────────────────────────────────────
 // Cascade delete: experiment + all sessions + all trials.
 
-router.delete('/:id', requireAuth, ownsExperiment, async (req, res, next) => {
-  try {
+router.delete(
+  '/:id',
+  requireAuth,
+  ownsExperiment,
+  asyncHandler(async (req, res) => {
     const expId = req.experiment._id;
 
     // Find all sessions to get their IDs for trial deletion
@@ -105,23 +112,30 @@ router.delete('/:id', requireAuth, ownsExperiment, async (req, res, next) => {
     const sessionResult = await Session.deleteMany({ experimentId: expId });
     await Experiment.findByIdAndDelete(expId);
 
-    res.json({
-      deleted: {
-        experiment: true,
-        sessions: sessionResult.deletedCount,
-        trials: trialResult.deletedCount,
-      },
-    });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.json(
+      new ApiResponse(
+        200,
+        {
+          deleted: {
+            experiment: true,
+            sessions: sessionResult.deletedCount,
+            trials: trialResult.deletedCount,
+          },
+        },
+        'Experiment deleted successfully'
+      )
+    );
+  })
+);
 
 // ─── POST /:id/duplicate ──────────────────────────────────
 // Deep copy the draft, reset status/slug/versions.
 
-router.post('/:id/duplicate', requireAuth, ownsExperiment, async (req, res, next) => {
-  try {
+router.post(
+  '/:id/duplicate',
+  requireAuth,
+  ownsExperiment,
+  asyncHandler(async (req, res) => {
     const source = req.experiment;
 
     const copy = await Experiment.create({
@@ -130,23 +144,22 @@ router.post('/:id/duplicate', requireAuth, ownsExperiment, async (req, res, next
       draft: JSON.parse(JSON.stringify(source.draft)),
     });
 
-    res.status(201).json({ experiment: copy });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.status(201).json(new ApiResponse(201, { experiment: copy }, 'Experiment duplicated successfully'));
+  })
+);
 
 // ─── POST /:id/publish ────────────────────────────────────
 // Freeze draft as a new version, generate slug on first publish.
 
-router.post('/:id/publish', requireAuth, ownsExperiment, async (req, res, next) => {
-  try {
+router.post(
+  '/:id/publish',
+  requireAuth,
+  ownsExperiment,
+  asyncHandler(async (req, res) => {
     const exp = req.experiment;
 
     if (exp.status === 'closed') {
-      return res.status(409).json({
-        error: { code: 'CONFLICT', message: 'Cannot publish a closed experiment' },
-      });
+      throw new ApiError(409, 'Cannot publish a closed experiment', [], '', 'CONFLICT');
     }
 
     const nextVersion = (exp.versions.length || 0) + 1;
@@ -167,14 +180,19 @@ router.post('/:id/publish', requireAuth, ownsExperiment, async (req, res, next) 
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
-    res.json({
-      version: nextVersion,
-      slug: exp.slug,
-      participantUrl: `${frontendUrl}/run/${exp.slug}`,
-    });
-  } catch (err) {
-    next(err);
-  }
-});
+    res.json(
+      new ApiResponse(
+        200,
+        {
+          version: nextVersion,
+          slug: exp.slug,
+          participantUrl: `${frontendUrl}/run/${exp.slug}`,
+        },
+        'Experiment published successfully'
+      )
+    );
+  })
+);
 
 export default router;
+
