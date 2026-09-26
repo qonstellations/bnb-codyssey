@@ -48,6 +48,20 @@ export function trackEngagement() {
   }
 }
 
+// Branch/intro scoring for one trial: a keyed trial left unanswered counts as an error
+// here (the recorded `correct` stays null), so a participant who never presses can't
+// look like 0/0 to a retry branch.
+export function branchScore(trial, correct, response) {
+  if (correct === null && response == null && trial.correctKey != null) return false
+  return correct
+}
+
+// Share of true among scored (non-null) values, or null when nothing is scored (ratings).
+export function blockAccuracy(scores = []) {
+  const scored = scores.filter((s) => s !== null)
+  return scored.length ? scored.filter(Boolean).length / scored.length : null
+}
+
 async function runTrial(trial, { renderer, scheduler, assets, blockId, trialIndex }) {
   const fixFrames = scheduler.msToFrames(trial.fixationDuration)
   if (fixFrames > 0) {
@@ -60,13 +74,16 @@ async function runTrial(trial, { renderer, scheduler, assets, blockId, trialInde
 
   const intendedFrames = scheduler.msToFrames(trial.duration)
   let responded = null
-  const responsePromise = waitForResponse(trial.validKeys, trial.timeoutMs ?? trial.duration).then(
-    (r) => {
-      responded = r
-    }
-  )
+  let responsePromise
 
-  const frameResult = await scheduler.run(intendedFrames, () => {
+  const frameResult = await scheduler.run(intendedFrames, (frame) => {
+    // Armed on the onset frame so the response window and its timeout start with the
+    // stimulus, and no press can predate onset (negative RT).
+    if (frame === 0) {
+      responsePromise = waitForResponse(trial.validKeys, trial.timeoutMs ?? trial.duration).then((r) => {
+        responded = r
+      })
+    }
     renderer.clear()
     if (trial.stimulus.type === 'text') {
       renderer.drawText(trial.stimulus.content, trial.stimulus.color ? { color: trial.stimulus.color } : undefined)
@@ -83,7 +100,8 @@ async function runTrial(trial, { renderer, scheduler, assets, blockId, trialInde
   const rt = responded ? responded.time - frameResult.onsetTime : null
 
   if (trial.feedback && (trial.feedback.correct || trial.feedback.incorrect)) {
-    const text = correct ? trial.feedback.correct : trial.feedback.incorrect
+    const tooSlow = !responded && !trial.withhold && trial.correctKey != null
+    const text = correct ? trial.feedback.correct : tooSlow ? 'Too slow' : trial.feedback.incorrect
     if (text) {
       renderer.clear()
       renderer.drawFeedback(text, { correct: !!correct })
@@ -121,6 +139,7 @@ export async function runExperiment(
     assets = { images: new Map(), audio: new Map() },
     onProgress,
     onFinish,
+    onBlockStart,
     onBlockEnd,
   }
 ) {
@@ -132,15 +151,22 @@ export async function runExperiment(
   const blockResults = new Map()
 
   function getMetrics(block) {
-    const records = blockResults.get(block.id) ?? []
-    const scored = records.filter((r) => r.correct !== null)
-    const accuracy = scored.length ? scored.filter((r) => r.correct).length / scored.length : 0
-    return { accuracy }
+    return { accuracy: blockAccuracy(blockResults.get(block.id) ?? []) ?? 0 }
   }
 
+  let blockIndex = 0
+  let prevBlock = null
   for (const block of walkFlow(experiment, { getMetrics })) {
+    // Runtime shows a "next block" screen; the accuracy just scored lets it explain a practice retry.
+    await onBlockStart?.(block, {
+      index: blockIndex++,
+      repeat: prevBlock === block,
+      prev: prevBlock && { block: prevBlock, accuracy: blockAccuracy(blockResults.get(prevBlock.id)) },
+    })
+    prevBlock = block
     const trials = buildBlockTrials(block)
     const records = []
+    const scores = []
     for (const trial of trials) {
       const record = await runTrial(trial, {
         renderer,
@@ -151,11 +177,12 @@ export async function runExperiment(
       })
       trialIndex++
       records.push(record)
+      scores.push(branchScore(trial, record.correct, record.response))
       worker.postMessage({ type: 'log', payload: record })
       onProgress?.(trialIndex)
     }
-    blockResults.set(block.id, records)
-    // Between-block break screen + upload flush lives in the runtime layer, not here.
+    blockResults.set(block.id, scores)
+    // Upload flush lives in the runtime layer; the next block's intro screen covers the pause.
     await onBlockEnd?.(block, records)
   }
 

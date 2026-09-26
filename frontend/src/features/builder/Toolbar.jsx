@@ -22,6 +22,17 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
   const settings = useBuilderStore((s) => s.settings)
   const loadFromJson = useBuilderStore((s) => s.loadFromJson)
   const select = useBuilderStore((s) => s.select)
+  const clearCanvas = useBuilderStore((s) => s.clearCanvas)
+  const hasBlocks = useBuilderStore((s) => s.nodes.some((n) => n.type !== 'start' && n.type !== 'end'))
+
+  function confirmClear() {
+    openConfirmModal({
+      title: 'Clear the canvas?',
+      message: 'Every task, decision and repeat will be removed, leaving just Start → End. You can undo this.',
+      confirmLabel: 'Clear canvas',
+      onConfirm: clearCanvas,
+    })
+  }
 
   // Returns compiled data, or null after showing errors (selecting the bad node).
   function compileOrNotify() {
@@ -194,6 +205,9 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
           <ActionIcon variant="subtle" disabled={!canRedo} onClick={redo} title="Redo">
             ↷
           </ActionIcon>
+          <Button variant="light" color="red" size="xs" disabled={!hasBlocks} onClick={confirmClear}>
+            Clear
+          </Button>
         </Group>
         <Group>
           <Button variant="subtle" onClick={() => setHowOpen(true)}>

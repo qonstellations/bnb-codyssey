@@ -19,10 +19,14 @@ function evalCondition(condition, metrics) {
 // elsewhere (including back to itself) once its condition matches live block metrics
 // (e.g. { accuracy: 0.6 } from the block just run). `maxSteps` guards both mechanisms
 // against an infinite cycle (e.g. a branch that always re-triggers on its own target).
-export function* walkFlow(experiment, { getMetrics, maxSteps = 500 } = {}) {
+// ponytail: each branch fires at most `maxBranchFires` times, then flow falls through —
+// stops a "redo practice" loop trapping a participant who never reaches the threshold.
+// Make it per-branch configurable if a design ever needs more retries.
+export function* walkFlow(experiment, { getMetrics, maxSteps = 500, maxBranchFires = 2 } = {}) {
   const blocks = experiment.blocks
   const blockIndex = new Map(blocks.map((b, i) => [b.id, i]))
   const loopByBlock = new Map(experiment.loops.map((l) => [l.blockId, l]))
+  const fires = new Map()
 
   let currentIndex = 0
   let steps = 0
@@ -39,7 +43,8 @@ export function* walkFlow(experiment, { getMetrics, maxSteps = 500 } = {}) {
 
       const metrics = getMetrics ? getMetrics(block) : {}
       const branch = experiment.branches.find((b) => b.from === block.id)
-      if (branch && evalCondition(branch.condition, metrics)) {
+      if (branch && (fires.get(branch) ?? 0) < maxBranchFires && evalCondition(branch.condition, metrics)) {
+        fires.set(branch, (fires.get(branch) ?? 0) + 1)
         currentIndex = blockIndex.get(branch.to) ?? currentIndex + 1
         jumped = true
         break

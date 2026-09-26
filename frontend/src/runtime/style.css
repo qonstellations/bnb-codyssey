@@ -1,47 +1,130 @@
+/* Participant runtime — same language as the site (landing.css / theme.js):
+   white, ink #1f1f1f, muted #5f6368, Google Sans Flex, pill buttons, 24px cards.
+   Nothing here animates over the trial canvas, so it costs no frame time. */
+:root {
+  --rt-ink: #1f1f1f;
+  --rt-muted: #5f6368;
+  --rt-line: #dadce0;
+  --rt-soft: #f1f3f4;
+  --rt-blue: #1a73e8;
+}
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
 body {
-  background: #000;
-  color: #fff;
-  font-family: system-ui, sans-serif;
+  background: #fff;
+  color: var(--rt-ink);
+  font-family: "Google Sans Flex", "Google Sans", Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 .rt-screen {
-  height: 100%;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 24px;
-  gap: 16px;
+  padding: 32px 16px;
+  gap: 20px;
 }
-.rt-screen h1 { font-size: 1.4rem; margin: 0; }
-.rt-screen p { max-width: 480px; line-height: 1.5; }
+.rt-kicker { margin: 0; font-size: 14px; color: var(--rt-muted); letter-spacing: 0.02em; }
+.rt-screen h1 {
+  margin: 0;
+  font-size: clamp(1.9rem, 5vw, 3rem);
+  font-weight: 450;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  max-width: 18ch;
+  text-wrap: balance;
+}
+.rt-screen p {
+  margin: 0;
+  max-width: 36rem;
+  font-size: clamp(1rem, 1.5vw, 1.125rem);
+  line-height: 1.55;
+  color: var(--rt-muted);
+}
+.rt-card {
+  max-width: 40rem;
+  width: 100%;
+  padding: 24px;
+  border: 1px solid var(--rt-line);
+  border-radius: 24px;
+  text-align: left;
+}
+.rt-card p { color: var(--rt-ink); max-width: none; }
+.rt-actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
 .rt-btn {
-  background: #2563eb;
+  background: var(--rt-ink);
   color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 12px 24px;
+  border: 1px solid var(--rt-ink);
+  border-radius: 999px;
+  padding: 12px 28px;
+  font: inherit;
   font-size: 1rem;
+  font-weight: 500;
   cursor: pointer;
 }
+.rt-btn:hover { background: #3c4043; }
+.rt-btn:focus-visible { outline: 3px solid var(--rt-blue); outline-offset: 3px; }
 .rt-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.rt-btn-secondary { background: transparent; border: 1px solid #666; }
+.rt-btn-secondary { background: transparent; color: var(--rt-ink); border-color: var(--rt-line); }
+.rt-btn-secondary:hover { background: var(--rt-soft); }
+.rt-hint { font-size: 14px; color: var(--rt-muted); }
+.rt-keys { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.rt-kbd {
+  min-width: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--rt-line);
+  border-bottom-width: 3px;
+  border-radius: 12px;
+  background: #fff;
+  font-weight: 500;
+  font-size: 1.1rem;
+}
 .rt-code {
-  font-family: monospace;
-  font-size: 1.2rem;
-  background: #1a1a1a;
-  padding: 8px 16px;
-  border-radius: 6px;
-  letter-spacing: 2px;
+  font-family: ui-monospace, monospace;
+  font-size: 1.3rem;
+  background: var(--rt-soft);
+  padding: 12px 20px;
+  border-radius: 16px;
+  letter-spacing: 3px;
 }
 .rt-progress {
-  width: 240px;
-  height: 8px;
-  background: #333;
-  border-radius: 4px;
+  width: 260px;
+  height: 6px;
+  background: var(--rt-soft);
+  border-radius: 999px;
   overflow: hidden;
 }
-.rt-progress-bar { height: 100%; background: #2563eb; transition: width 0.15s; }
-canvas.rt-canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
+.rt-progress-bar { height: 100%; background: var(--rt-ink); border-radius: 999px; }
+
+/* Trial phase */
+canvas.rt-canvas { position: fixed; inset: 0; width: 100%; height: 100%; cursor: none; touch-action: none; }
+.rt-overlay { position: fixed; inset: 0; z-index: 3; overflow: auto; background: #fff; }
+.rt-overlay:empty { display: none; }
+.rt-trialbar { position: fixed; top: 0; left: 0; right: 0; height: 4px; z-index: 2; pointer-events: none; }
+.rt-trialbar > div { height: 100%; background: currentColor; opacity: 0.35; }
+.rt-pad {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  gap: 12px;
+  padding: 16px 16px max(16px, env(safe-area-inset-bottom));
+  touch-action: manipulation;
+  user-select: none;
+}
+.rt-pad button {
+  flex: 1;
+  min-height: 72px;
+  border: 1px solid var(--rt-line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--rt-ink);
+  font: inherit;
+  font-size: 1.4rem;
+  font-weight: 500;
+}
+.rt-pad button:active { background: var(--rt-soft); }
