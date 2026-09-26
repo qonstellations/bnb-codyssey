@@ -53,7 +53,7 @@ charting library, no animation library**. It has its own 47-line DOM builder (`r
 and its own stylesheet. Nothing in `engine/` imports anything from the rest of the app.
 
 This is the single most important structural decision in the project. A participant loading a
-32 KB gzipped bundle instead of 478 KB means faster trial starts on a cold phone connection,
+34 KB gzipped bundle instead of 479 KB means faster trial starts on a cold phone connection,
 and it removes an entire class of failure — a researcher-side dependency change can never
 alter stimulus timing for a participant mid-study.
 
@@ -169,12 +169,45 @@ quietly go wrong.
 
 Response listeners are attached after fixation and before onset, so a keypress during the
 fixation cross cannot produce a negative RT. `event.repeat` is ignored, so a held key does not
-register twice. Only keys listed in the trial's `validKeys` are accepted.
+register twice. Only keys listed in the trial's `validKeys` are accepted, and `preventDefault()`
+stops Space from scrolling the page or re-firing a focused button.
 
-One browser-specific trap is handled explicitly (`input.js`): Safari before 14 reports
-`event.timeStamp` as **epoch milliseconds** while rAF and `performance.now()` are
-navigation-relative. Subtracting them yields reaction times around 1.7 × 10¹² ms. Timestamps
-above 10¹² are normalised against `performance.timeOrigin` before use.
+Key matching tries the **physical** key as well as the logical one:
+
+```js
+export function keyCandidates({ key = '', code = '' }) {
+  const out = [key.toLowerCase()]
+  if (code === 'Space') out.push(' ')
+  else if (/^Key[A-Z]$/.test(code)) out.push(code.slice(3).toLowerCase())
+  else if (/^(Digit|Numpad)\d$/.test(code)) out.push(code.slice(-1))
+  return out
+}
+```
+
+so a trial authored with `validKeys: ['f']` still scores when the participant has CapsLock on,
+or is on a non-Latin layout where `event.key` would not be `'f'`.
+
+On a touch-only device the runtime renders one large button per response key, and
+`pointerdown` reads the button's `data-key` — so a phone can run a keyboard task without a
+keyboard.
+
+One browser-specific trap is handled explicitly: Safari before 14 reports `event.timeStamp` as
+**epoch milliseconds** while rAF and `performance.now()` are navigation-relative. Subtracting
+them yields reaction times around 1.7 × 10¹² ms. Timestamps above 10¹² are normalised against
+`performance.timeOrigin` before use.
+
+### Keeping the frame budget clean
+
+Two things that would otherwise cost milliseconds per frame are moved out of the frame path:
+
+- **Text auto-fit.** `renderer.js` shrinks text to the largest size whose widest line fits 90%
+  of the canvas width and whose block fits 90% of the height, so a long instruction or a
+  multi-line stimulus is never clipped. The measurement is cached by
+  `size|viewport|content`, so `measureText` runs once per unique string rather than on every
+  redraw.
+- **Font preloading.** Canvas text silently swaps glyphs if the webfont arrives after the first
+  frame. The runtime awaits `document.fonts.load()` for the renderer's font family, raced
+  against a 1.5 s timeout so an unreachable font can never block the run.
 
 ### Dropped frames are recorded, not hidden
 
@@ -200,9 +233,10 @@ The invariant the whole runtime is arranged around. The sequence is:
 4. `startSession` → `PATCH` calibration to the server (two requests)
 5. `instructions` — this click also unlocks the `AudioContext` and requests fullscreen
 6. `preload` — decode every image with `img.decode()` and every sound with `decodeAudioData`,
-   behind a progress bar
+   behind a progress bar, raced against the webfont load
 7. **trials** — rAF loop only, no network
-8. `break` screens **between** blocks, where a batch upload is flushed
+8. **block intro** between blocks — a batch upload flushes in the background *while the intro
+   screen is up*, so the upload is not dead time
 9. `complete` — final flush and the withdrawal code
 
 Trials are buffered in a Web Worker (`logger.worker.js`) with an IndexedDB mirror, so a tab
@@ -224,8 +258,16 @@ the path:
 
 Conditions are a fixed grammar: a `metric` (`accuracy`, `meanRt`, `completionRate`), an
 `operator` (`< <= > >= == !=`), and a numeric `value`. Metrics are read per-block from the
-records just collected. A `maxSteps` guard of 500 stops a branch that re-triggers on its own
-target from hanging the participant.
+records just collected. Two guards keep a branching design from hanging a participant:
+
+- `maxSteps` (500) stops an unbounded walk
+- `maxBranchFires` (2) stops a *single* branch re-triggering forever — a "redo practice until
+  accuracy ≥ 70%" rule would otherwise trap a participant who never reaches the threshold, so
+  after two fires the flow falls through to the next block regardless
+
+The `onBlockStart` callback fires before each block with the block's index, whether it is a
+repeat, and the previous block's accuracy — which is what lets the intro screen say *"you scored
+60%, here's another round"* rather than showing a generic title.
 
 This is a deliberate grammar rather than a scripting language. It covers adaptive and
 instruction-repetition designs, which is what most behavioural paradigms actually need, and it
@@ -347,32 +389,33 @@ Measured from `npm run build` on the current tree:
 
 | Asset | Raw | Gzip |
 |---|---|---|
-| `run-*.js` — participant runtime + engine | 15.8 kB | **6.3 kB** |
-| `run-*.css` | 0.9 kB | 0.5 kB |
+| `run-*.js` — participant runtime + engine | 19.0 kB | **7.6 kB** |
+| `run-*.css` | 2.9 kB | 1.1 kB |
 | `experimentSchema-*.js` — shared validation | 89.1 kB | 25.8 kB |
-| **Participant total** | **~106 kB** | **~32 kB** |
-| `main-*.js` — researcher app | 1,550 kB | 478 kB |
-| `main-*.css` | 280 kB | 42 kB |
+| **Participant total** | **~111 kB** | **~34 kB** |
+| `main-*.js` — researcher app | 1,551 kB | 479 kB |
+| `main-*.css` | 281 kB | 42 kB |
 
-The participant payload is the number that matters: ~32 KB gzipped, of which the majority is the
+The participant payload is the number that matters: ~34 KB gzipped, of which the majority is the
 Zod schema used to re-validate the downloaded experiment. The researcher bundle is not
 code-split — fine on localhost, and the obvious place to spend time if this were deployed.
 
 ## Deliberate shortcuts
 
 The codebase uses a `// ponytail:` comment to mark a known shortcut with its upgrade path
-inline. There are eight, and each names a real fix rather than apologising for the code:
+inline. There are nine, and each names a real fix rather than apologising for the code:
 
 | Location | Shortcut | Real fix |
 |---|---|---|
 | `services/groq.js:60` | generation cache is an in-process `Map`, so instances diverge | move to the Upstash Redis already wired for rate limiting |
-| `services/normalizeDraft.js:33` | clamps numeric fields into range rather than rejecting | fine as-is; the schema bounds are the backstop |
+| `services/normalizeDraft.js:33` | clamps AI output to text stimuli, since the model cannot reference researcher uploads | teach the generator the uploaded-stimulus library |
 | `controllers/experiments.controller.js:7` | slugs are 8 chars of `randomBytes` | already retries three times on the unique-index collision |
 | `controllers/run.controller.js:32` | withdraw codes likewise | — |
 | `models/Experiment.js:22` | partial `slug` index, needed because drafts store `slug: null` | — |
-| `runtime/main.js:123` | "last block" is an array-position check, not flow-aware, so a branch that ends on an earlier-indexed block shows one extra break screen | flow-aware detection |
-| `features/results/useConditionAggregates.js:4` | per-condition stats are rolled up client-side, capped at 50 sessions | a server-side aggregation endpoint |
-| `engine/selfcheck.mjs:1` | assertion scripts, not a test framework | Vitest |
+| `engine/flow.js` | each branch may fire at most `maxBranchFires` (2) times, then flow falls through | make the cap per-branch configurable if a design needs more retries |
+| `runtime/main.js` | "last block" is an array-position check, not flow-aware, so a branch that ends on an earlier-indexed block shows one extra intro screen | flow-aware detection |
+| `features/results/useConditionAggregates.js` | per-condition stats are rolled up client-side, capped at 50 sessions | a server-side aggregation endpoint |
+| `engine/selfcheck.mjs` | assertion scripts, not a test framework | Vitest |
 
 Two further known limits are documented where they live rather than with this marker: the
 unused seeded PRNG in `engine/randomizer.js` (the seed is never stored on a session, so trial
