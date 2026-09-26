@@ -2,17 +2,13 @@ import { apiBase, request } from "./client.js";
 
 // Participant runtime — public routes, no auth header. Kept tiny on purpose:
 // this module is imported by the lightweight run.html bundle (no React/Mantine).
-// The backend wraps payloads in an ApiResponse envelope — unwrap once here so
-// the runtime keeps its pre-envelope shape (the researcher app reads .data itself).
-
-const inner = (p) => p.then((body) => body?.data ?? body);
 
 export function loadExperiment(slug) {
-  return inner(request("GET", `/run/${slug}`));
+  return request("GET", `/run/${slug}`);
 }
 
 export function startSession(slug, deviceInfo) {
-  return inner(request("POST", `/run/${slug}/sessions`, { deviceInfo }));
+  return request("POST", `/run/${slug}/sessions`, { deviceInfo });
 }
 
 export function updateSession(sessionId, { calibration, status } = {}) {
@@ -27,7 +23,7 @@ export function uploadTrials(sessionId, trials) {
 }
 
 export function completeSession(sessionId) {
-  return inner(request("POST", `/run/sessions/${sessionId}/complete`));
+  return request("POST", `/run/sessions/${sessionId}/complete`);
 }
 
 /** Last-chance save on tab close. Returns the sendBeacon boolean. */
