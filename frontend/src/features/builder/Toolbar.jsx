@@ -7,6 +7,7 @@ import { createTemplate } from '../../api/templates.js'
 import TemplateGallery from '../../components/TemplateGallery.jsx'
 import { openConfirmModal } from '../../components/ConfirmModal.jsx'
 import AiGenerateModal from './AiGenerateModal.jsx'
+import HowItWorksModal from './HowItWorksModal.jsx'
 
 const AUTOSAVE_MS = 30000
 
@@ -28,7 +29,7 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
     if (!data) {
       const first = errors[0]
       if (first?.nodeId) select(first.nodeId)
-      notifications.show({ color: 'red', message: first?.message ?? 'Experiment is invalid' })
+      notifications.show({ color: 'red', message: first?.friendly ?? first?.message ?? 'Experiment is invalid' })
       return null
     }
     for (const warning of warnings ?? []) {
@@ -42,6 +43,7 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
   const [publishResult, setPublishResult] = useState(null)
   const [publishing, setPublishing] = useState(false)
   const [aiOpen, setAiOpen] = useState(false)
+  const [howOpen, setHowOpen] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [saveTpl, setSaveTpl] = useState(null) // { title, description, draft } while the save dialog is open
   const [savingTpl, setSavingTpl] = useState(false)
@@ -180,6 +182,9 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
           </ActionIcon>
         </Group>
         <Group>
+          <Button variant="subtle" onClick={() => setHowOpen(true)}>
+            How it works
+          </Button>
           <Button variant="light" onClick={() => setAiOpen(true)}>
             Generate with AI
           </Button>
@@ -192,8 +197,8 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
               <Menu.Item onClick={openSaveTemplate}>Save current as template…</Menu.Item>
             </Menu.Dropdown>
           </Menu>
-          <Button variant="light" onClick={preview}>
-            Preview
+          <Button variant="light" onClick={preview} title="See the experiment exactly as a participant would">
+            Preview participant
           </Button>
           <Button variant="default" loading={saving} disabled={!isDirty} onClick={save}>
             {isDirty ? 'Save' : 'Saved ✓'}
@@ -203,6 +208,7 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
       </Group>
 
       <AiGenerateModal opened={aiOpen} onClose={() => setAiOpen(false)} onTitleChange={onTitleChange} />
+      <HowItWorksModal opened={howOpen} onClose={() => setHowOpen(false)} />
 
       <TemplateGallery opened={galleryOpen} onClose={() => setGalleryOpen(false)} onPick={applyTemplate} />
 

@@ -6,7 +6,7 @@ export default function LoopNode({ data, selected }) {
       <Handle type="target" position={Position.Top} />
       <div className="flow-card-title">
         <span className="flow-dot" style={{ background: '#a142f4' }} />
-        Loop
+        Repeat
       </div>
       <div className="flow-card-sub">repeat {data.repetitions ?? 2}x</div>
     </div>

@@ -5,18 +5,6 @@ import { setToken, setOnUnauthorized, setOnRefreshed } from "../api/client.js";
 const TOKEN_KEY = "authToken";
 const REFRESH_KEY = "refreshToken";
 
-// ---- TEMPORARY demo auth (dev only, remove before production) ----
-// Enabled only when VITE_DEMO_AUTH=true (see .env, gitignored).
-const DEMO_EMAIL = "demo@codyssey.local";
-const DEMO_PASSWORD = "demo1234";
-const DEMO_TOKEN = "demo-token";
-const demoEnabled = import.meta.env.VITE_DEMO_AUTH === "true";
-function demoUser() {
-  return { id: "demo-user", name: "Demo Researcher", email: DEMO_EMAIL };
-}
-export const DEMO_CREDS =
-  demoEnabled ? { email: DEMO_EMAIL, password: DEMO_PASSWORD } : null;
-
 const AuthContext = createContext(null);
 
 function readStoredToken() {
@@ -91,13 +79,6 @@ export function AuthProvider({ children }) {
       return;
     }
     setToken(stored);
-    if (stored === DEMO_TOKEN) {
-      // Demo/guest session — no backend to validate against.
-      setUser(demoUser());
-      setTokenState(stored);
-      setIsLoading(false);
-      return;
-    }
     authApi
       .getMe()
       .then((payload) => {
@@ -109,14 +90,6 @@ export function AuthProvider({ children }) {
   }, [logoutSilent]);
 
   const login = useCallback(async (email, password) => {
-    if (demoEnabled && email === DEMO_EMAIL && password === DEMO_PASSWORD) {
-      setToken(DEMO_TOKEN);
-      storeSession(DEMO_TOKEN, null);
-      const u = demoUser();
-      setUser(u);
-      setTokenState(DEMO_TOKEN);
-      return u;
-    }
     const payload = await authApi.login(email, password);
     const { user: u, token: t } = applyPayload(payload);
     setUser(u);
@@ -124,25 +97,7 @@ export function AuthProvider({ children }) {
     return u;
   }, []);
 
-  // Guest mode: local demo session backed by api/demoBackend.js, no account needed.
-  const continueAsGuest = useCallback(() => {
-    setToken(DEMO_TOKEN);
-    storeSession(DEMO_TOKEN, null);
-    const u = { id: "demo-user", name: "Guest", email: DEMO_EMAIL };
-    setUser(u);
-    setTokenState(DEMO_TOKEN);
-    return u;
-  }, []);
-
   const signup = useCallback(async (name, email, password) => {
-    if (demoEnabled) {
-      setToken(DEMO_TOKEN);
-      storeSession(DEMO_TOKEN, null);
-      const u = { id: "demo-user", name: name || "Demo Researcher", email };
-      setUser(u);
-      setTokenState(DEMO_TOKEN);
-      return u;
-    }
     const payload = await authApi.register(name, email, password);
     const { user: u, token: t } = applyPayload(payload);
     setUser(u);
@@ -151,8 +106,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, token, isLoading, login, signup, logout, continueAsGuest }),
-    [user, token, isLoading, login, signup, logout, continueAsGuest]
+    () => ({ user, token, isLoading, login, signup, logout }),
+    [user, token, isLoading, login, signup, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

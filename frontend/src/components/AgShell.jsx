@@ -8,7 +8,7 @@ import Lenis from "lenis";
 import ParticleField from "./ParticleField.jsx";
 import "../landing.css";
 
-gsap.registerPlugin(useGSAP, ScrollTrigger, SplitText);
+gsap.registerPlugin(ScrollTrigger, SplitText);
 
 // Shared frame for landing + auth: particle field, nav, smooth scroll, and
 // entrance motion. `.ag-split` headlines rise word by word, `.ag-reveal`
@@ -27,23 +27,32 @@ export default function AgShell({ children, navRight }) {
       gsap.ticker.lagSmoothing(0);
 
       const tl = gsap.timeline({ defaults: { ease: "expo.out" } });
-      gsap.utils.toArray(".ag-split").forEach((el) => {
-        const split = SplitText.create(el, { type: "words", mask: "words" });
+      const splits = gsap.utils.toArray(".ag-split").map((el) =>
+        SplitText.create(el, { type: "words", mask: "words" })
+      );
+      splits.forEach((split) => {
         tl.from(split.words, { yPercent: 110, duration: 1.2, stagger: 0.06 }, 0.1);
       });
       tl.from(".ag-reveal", { y: 24, autoAlpha: 0, duration: 1, stagger: 0.08 }, 0.45);
 
-      gsap.utils.toArray(".ag-scroll").forEach((el) => {
-        gsap.from(el, {
-          y: 48,
-          autoAlpha: 0,
-          duration: 1.1,
-          ease: "expo.out",
-          scrollTrigger: { trigger: el, start: "top 85%" },
-        });
-      });
+      const scrollTriggers = gsap.utils.toArray(".ag-scroll").map((el) =>
+        ScrollTrigger.create({
+          trigger: el,
+          start: "top 85%",
+          once: true,
+          animation: gsap.from(el, {
+            y: 48,
+            autoAlpha: 0,
+            duration: 1.1,
+            ease: "expo.out",
+            paused: true,
+          }),
+        })
+      );
 
       return () => {
+        scrollTriggers.forEach((st) => st.kill());
+        splits.forEach((split) => split.revert());
         gsap.ticker.remove(tick);
         gsap.ticker.lagSmoothing(500, 33);
         lenis.destroy();
