@@ -22,6 +22,14 @@ const sessionSchema = new mongoose.Schema({
   },
   excluded: { type: Boolean, default: false },
   withdrawCode: { type: String, required: true, unique: true },
+  tokenHash: { type: String, select: false }, // sha256 of the participant's write token
+  version: { type: Number }, // published version this participant ran
+  seed: { type: Number }, // trial-order PRNG seed, reproduces the shuffle
+  engagement: {
+    tabSwitches: { type: Number },
+    blurCount: { type: Number },
+    fullscreenExits: { type: Number },
+  },
   startedAt: { type: Date, default: Date.now },
   completedAt: { type: Date, default: null },
 });

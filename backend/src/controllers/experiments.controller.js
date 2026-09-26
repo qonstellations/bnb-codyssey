@@ -3,6 +3,7 @@ import Experiment from '../models/Experiment.js';
 import Session from '../models/Session.js';
 import Trial from '../models/Trial.js';
 import { asyncHandler, ApiError, ApiResponse } from '../utils/index.js';
+import { validateExperiment } from '../validators/experimentSchema.js';
 
 // ponytail: crypto ids, retry on unique collision if throughput matters
 const SLUG_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -99,11 +100,17 @@ export const publishExperiment = asyncHandler(async (req, res) => {
     throw new ApiError(409, 'Cannot publish a closed experiment', [], '', 'CONFLICT');
   }
 
+  // Participants only ever get a snapshot the runtime can run.
+  const { ok, errors, data } = validateExperiment(exp.draft);
+  if (!ok) {
+    throw new ApiError(400, `Experiment is invalid: ${errors[0]}`, errors, '', 'VALIDATION_ERROR');
+  }
+
   const nextVersion = (exp.versions.length || 0) + 1;
 
   exp.versions.push({
     version: nextVersion,
-    snapshot: JSON.parse(JSON.stringify(exp.draft ?? {})),
+    snapshot: data,
     publishedAt: new Date(),
   });
 

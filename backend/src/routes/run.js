@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { rateLimit, validate, requireObjectId } from '../middlewares/index.js';
+import { rateLimit, validate, requireObjectId, requireSessionToken } from '../middlewares/index.js';
 import {
   getExperimentBySlug,
   startSession,
@@ -43,13 +43,21 @@ const patchSessionSchema = z
     message: 'At least one field required',
   });
 
+const count = z.number().int().min(0).max(100000);
+const completeSessionSchema = z.object({
+  engagement: z
+    .object({ tabSwitches: count, blurCount: count, fullscreenExits: count })
+    .optional(),
+});
+
 // ─── Routes ────────────────────────────────────────────────
+// Session writes check the token first: validate() strips unknown keys like `token`.
 
 router.get('/:slug', rateLimit, getExperimentBySlug);
 router.post('/:slug/sessions', rateLimit, validate(createSessionSchema), startSession);
-router.patch('/sessions/:sessionId', rateLimit, validate(patchSessionSchema), patchSession);
-router.post('/sessions/:sessionId/trials', rateLimit, validate(trialsSchema), uploadTrials);
-router.post('/sessions/:sessionId/complete', rateLimit, completeSession);
+router.patch('/sessions/:sessionId', rateLimit, requireSessionToken, validate(patchSessionSchema), patchSession);
+router.post('/sessions/:sessionId/trials', rateLimit, requireSessionToken, validate(trialsSchema), uploadTrials);
+router.post('/sessions/:sessionId/complete', rateLimit, requireSessionToken, validate(completeSessionSchema), completeSession);
 router.post('/sessions/:sessionId/beacon', rateLimit, beaconSave);
 router.delete('/withdraw/:withdrawCode', rateLimit, withdrawSession);
 

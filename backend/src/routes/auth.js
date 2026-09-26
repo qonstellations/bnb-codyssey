@@ -7,6 +7,7 @@ import {
   refreshAccessToken,
   logoutUser,
   getCurrentUser,
+  deleteAccount,
 } from '../controllers/auth.controller.js';
 
 const router = Router();
@@ -28,6 +29,10 @@ const refreshSchema = z.object({
   refreshToken: z.string().min(1),
 });
 
+const deleteSchema = z.object({
+  password: z.string().min(1).max(128),
+});
+
 // ─── Routes ────────────────────────────────────────────────
 
 router.post('/register', rateLimit, validate(registerSchema), registerUser);
@@ -35,5 +40,6 @@ router.post('/login', rateLimit, validate(loginSchema), loginUser);
 router.post('/refresh', rateLimit, validate(refreshSchema), refreshAccessToken);
 router.post('/logout', requireAuth, validate(refreshSchema), logoutUser);
 router.get('/me', requireAuth, getCurrentUser);
+router.delete('/me', requireAuth, rateLimit, validate(deleteSchema), deleteAccount);
 
 export default router;

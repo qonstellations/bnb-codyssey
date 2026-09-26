@@ -288,3 +288,104 @@
     transition: none;
   }
 }
+
+/* Landing — timing certificate demo (star feature) + AI band */
+.ag-cert-wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-top: 40px;
+}
+.ag-cert {
+  width: min(420px, 100%);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 12px 32px -12px rgba(60, 64, 67, 0.25);
+}
+.ag-cert-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.ag-cert-title {
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.ag-cert-badge {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+.ag-cert-certified { background: #e6f4ea; color: #188038; }
+.ag-cert-fair { background: #fef7e0; color: #b06000; }
+.ag-cert-poor { background: #fce8e6; color: #d93025; }
+.ag-cert-score {
+  font-size: 64px;
+  font-weight: 450;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.ag-cert-score span {
+  font-size: 18px;
+  color: var(--ag-muted);
+  margin-left: 6px;
+  letter-spacing: 0;
+}
+.ag-cert-stats {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+.ag-cert-stats div {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid #e8eaed;
+  padding-top: 8px;
+}
+.ag-cert-stats dt { color: var(--ag-muted); }
+.ag-cert-stats dd { margin: 0; font-variant-numeric: tabular-nums; }
+.ag-cert-note {
+  margin: 0;
+  color: var(--ag-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.ag-cert .ag-pill:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.ag-ai {
+  width: min(640px, 100%);
+  margin-top: 40px;
+  text-align: left;
+}
+.ag-ai-prompt {
+  font-size: 18px;
+  color: var(--ag-ink) !important;
+  margin-bottom: 20px !important;
+}
+.ag-ai-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.ag-ai-chip {
+  border: 1px solid #dadce0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 14px;
+  background: #fff;
+  animation: ag-chip-in 0.4s ease-out both;
+}
+@keyframes ag-chip-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ag-ai-chip { animation: none; }
+}

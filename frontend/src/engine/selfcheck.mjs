@@ -25,6 +25,12 @@ for (let i = 1; i < shuffled.length; i++) {
 const block = { id: 'b1', trials: [{ id: 't1' }, { id: 't2' }], repetitions: 3, shuffle: false }
 assert.strictEqual(buildBlockTrials(block).length, 6, 'repetitions should multiply trial count')
 
+// A stored session seed replays the exact shuffled trial order.
+const shuffleBlock = { id: 'b', shuffle: true, maxRepeats: 2, repetitions: 2, trials: items.map((t, i) => ({ ...t, id: `t${i}` })) }
+const order = (seed) => buildBlockTrials(shuffleBlock, { random: createSeededRandom(seed) }).map((t) => t.id).join()
+assert.strictEqual(order(123), order(123), 'same seed must replay the same trial order')
+assert.notStrictEqual(order(123), order(456), 'different seeds should give different orders')
+
 // Flow walks blocks in order with no branches/loops.
 const experiment = {
   blocks: [{ id: 'b1', trials: [{}] }, { id: 'b2', trials: [{}] }],
