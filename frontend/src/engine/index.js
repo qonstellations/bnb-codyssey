@@ -4,6 +4,7 @@ import { waitForResponse } from './input.js'
 import { buildBlockTrials, createSeededRandom } from './randomizer.js'
 import { walkFlow } from './flow.js'
 import { scoreTrial } from './score.js'
+import { play } from './audio.js'
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -62,6 +63,21 @@ export function blockAccuracy(scores = []) {
   return scored.length ? scored.filter(Boolean).length / scored.length : null
 }
 
+// Live metrics a branch condition can test, for one block run. `records` line up with
+// `trials`. meanRt counts correct responses only; completionRate is the share of keyed
+// (non-withhold) trials that got any response. Unmeasurable metrics stay undefined, so a
+// branch on them doesn't fire.
+export function blockMetrics(trials, records, scores) {
+  const rts = records.filter((r) => r.correct === true && r.rt != null).map((r) => r.rt)
+  const keyed = trials.filter((t) => !t.withhold && t.correctKey != null)
+  const answered = trials.filter((t, i) => !t.withhold && t.correctKey != null && records[i].response != null)
+  return {
+    accuracy: blockAccuracy(scores) ?? 0,
+    meanRt: rts.length ? rts.reduce((a, b) => a + b, 0) / rts.length : undefined,
+    completionRate: keyed.length ? answered.length / keyed.length : undefined,
+  }
+}
+
 async function runTrial(trial, { renderer, scheduler, assets, blockId, trialIndex }) {
   const fixFrames = scheduler.msToFrames(trial.fixationDuration)
   let early = null
@@ -94,6 +110,10 @@ async function runTrial(trial, { renderer, scheduler, assets, blockId, trialInde
         responsePromise = waitForResponse(trial.validKeys, trial.timeoutMs ?? trial.duration).then((r) => {
           responded = r
         })
+        if (trial.stimulus.type === 'audio') {
+          const buffer = assets.audio.get(trial.stimulus.url)
+          if (buffer) play(buffer)
+        }
       }
       renderer.clear()
       if (trial.stimulus.type === 'text') {
@@ -166,7 +186,8 @@ export async function runExperiment(
   const blockResults = new Map()
 
   function getMetrics(block) {
-    return { accuracy: blockAccuracy(blockResults.get(block.id) ?? []) ?? 0 }
+    const r = blockResults.get(block.id)
+    return r ? blockMetrics(r.trials, r.records, r.scores) : { accuracy: 0 }
   }
 
   let blockIndex = 0
@@ -176,7 +197,7 @@ export async function runExperiment(
     await onBlockStart?.(block, {
       index: blockIndex++,
       repeat: prevBlock === block,
-      prev: prevBlock && { block: prevBlock, accuracy: blockAccuracy(blockResults.get(prevBlock.id)) },
+      prev: prevBlock && { block: prevBlock, accuracy: blockAccuracy(blockResults.get(prevBlock.id)?.scores) },
     })
     prevBlock = block
     const trials = buildBlockTrials(block, { random })
@@ -196,7 +217,7 @@ export async function runExperiment(
       worker.postMessage({ type: 'log', payload: record })
       onProgress?.(trialIndex)
     }
-    blockResults.set(block.id, scores)
+    blockResults.set(block.id, { trials, records, scores })
     // Upload flush lives in the runtime layer; the next block's intro screen covers the pause.
     await onBlockEnd?.(block, records)
   }
