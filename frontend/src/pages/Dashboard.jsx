@@ -8,6 +8,7 @@ import {
   deleteExperiment,
   duplicateExperiment,
   listExperiments,
+  publishExperiment,
   updateExperiment,
 } from '../api/experiments.js'
 import { sampleStroop } from '../shared/sampleStroop.js'
@@ -41,6 +42,20 @@ function ExperimentCard({ experiment, onChanged }) {
   async function copyLink() {
     await navigator.clipboard.writeText(participantUrl(experiment.slug))
     notifications.show({ message: 'Participant link copied' })
+  }
+
+  function confirmPublish() {
+    openConfirmModal({
+      title: 'Publish experiment?',
+      message: `"${experiment.title}" goes live with its last saved draft at a public participant link.`,
+      confirmLabel: 'Publish',
+      confirmColor: 'blue',
+      onConfirm: () =>
+        runAction(async () => {
+          const { participantUrl } = await publishExperiment(experiment._id)
+          notifications.show({ color: 'green', title: 'Published', message: participantUrl })
+        }),
+    })
   }
 
   function confirmDelete() {
@@ -77,6 +92,9 @@ function ExperimentCard({ experiment, onChanged }) {
               </Button>
             </Menu.Target>
             <Menu.Dropdown>
+              {experiment.status !== 'active' && (
+                <Menu.Item color="blue" fw={500} onClick={confirmPublish}>Publish</Menu.Item>
+              )}
               <Menu.Item onClick={() => navigate(`/experiments/${experiment._id}/results`)}>
                 Results
               </Menu.Item>
