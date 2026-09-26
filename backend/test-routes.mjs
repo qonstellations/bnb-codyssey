@@ -134,7 +134,15 @@ let expId, dupId;
   log('GET /experiments/:id non-owner → 403', cross.status === 403, `got ${cross.status}`);
   const malformed = await req('GET', '/experiments/not-an-id', { token: acc1 });
   log('GET /experiments/:id malformed → 404 (not 500)', malformed.status === 404, `got ${malformed.status}`);
-  const upd = await req('PUT', `/experiments/${expId}`, { token: acc1, body: { title: 'API Test Stroop v2', draft: { settings: {}, blocks: [], branches: [], loops: [] } } });
+  const validDraft = {
+    settings: { consentText: 'I agree to participate.' },
+    blocks: [{
+      id: 'block_main', label: 'Main', shuffle: false, maxRepeats: 2, repetitions: 1,
+      trials: [{ id: 'trial_1', stimulus: { type: 'text', content: 'RED' }, duration: 2000, fixationDuration: 500, validKeys: ['f', 'j'], correctKey: 'f', condition: 'congruent' }],
+    }],
+    branches: [], loops: [],
+  };
+  const upd = await req('PUT', `/experiments/${expId}`, { token: acc1, body: { title: 'API Test Stroop v2', draft: validDraft } });
   log('PUT /experiments/:id → 200 updated', upd.status === 200 && upd.data?.experiment?.title === 'API Test Stroop v2', `got ${upd.status}`);
   const empty = await req('PUT', `/experiments/${expId}`, { token: acc1, body: {} });
   log('PUT /experiments/:id {} → 400', empty.status === 400, `got ${empty.status}`);
@@ -161,7 +169,7 @@ let slug;
   const freshGet = await req('GET', `/experiments/${freshId}`, { token: acc1 });
   log('fresh experiment has draft {} (minimize fix)', freshGet.status === 200 && !!freshGet.data?.experiment?.draft, `draft=${JSON.stringify(freshGet.data?.experiment?.draft)}`);
   const freshPub = await req('POST', `/experiments/${freshId}/publish`, { token: acc1 });
-  log('publish with no draft save → 200 (no JSON crash)', freshPub.status === 200 && !!freshPub.data?.slug, `got ${freshPub.status}`);
+  log('publish with no draft save → 400 validation error (no JSON crash)', freshPub.status === 400 && freshPub.data?.error?.code === 'VALIDATION_ERROR', `got ${freshPub.status}`);
   const freshDup = await req('POST', `/experiments/${freshId}/duplicate`, { token: acc1 });
   log('duplicate unsaved draft → 201', freshDup.status === 201, `got ${freshDup.status}`);
   await req('DELETE', `/experiments/${freshId}`, { token: acc1 });
@@ -170,46 +178,49 @@ let slug;
 // 14-20. participant runtime (public → paced for rate limiter)
 const P = { deviceInfo: { browser: 'TestBot 1.0', os: 'TestOS', screenW: 1920, screenH: 1080, pixelRatio: 2 } };
 const trial = (i) => ({ trialIndex: i, blockId: 'block_main', condition: i % 2 ? 'incongruent' : 'congruent', stimulus: { type: 'text', content: 'RED', url: null }, response: 'f', correct: true, rt: 500 + i, frameData: { intended: 120, actual: 120, dropped: 0 } });
-let sessId, withdrawCode;
+let sessId, withdrawCode, sessToken;
 {
   const g = await req('GET', `/run/${slug}`); await sleep(1200);
   log('GET /run/:slug → 200 snapshot', g.status === 200 && !!g.data?.experiment?.snapshot, `got ${g.status}`);
   const miss = await req('GET', '/run/ZZZZZZZZ'); await sleep(1200);
   log('GET /run/:slug unknown → 404', miss.status === 404, `got ${miss.status}`);
-  // publish the copy first — a closed *draft* has no slug, so /run/<slug> would 404
-  const pubCopy = await req('POST', `/experiments/${dupId}/publish`, { token: acc1 });
+  // publish a fresh copy first — a closed *draft* has no slug, so /run/<slug> would 404.
+  // (dupId itself is already closed from the section-13 conflict check above.)
+  const closeCopy = await req('POST', `/experiments/${expId}/duplicate`, { token: acc1 });
+  const closeCopyId = closeCopy.data?.experiment?._id;
+  const pubCopy = await req('POST', `/experiments/${closeCopyId}/publish`, { token: acc1 });
   const closedSlug = pubCopy.data?.slug;
-  await req('PUT', `/experiments/${dupId}`, { token: acc1, body: { status: 'closed' } });
+  await req('PUT', `/experiments/${closeCopyId}`, { token: acc1, body: { status: 'closed' } });
   const closedExp = await req('GET', `/run/${closedSlug}`); await sleep(1200);
   log('GET /run/:slug closed → 410 GONE', closedExp.status === 410 && closedExp.data?.error?.code === 'GONE', `got ${closedExp.status} (slug ${closedSlug})`);
   const closedSession = await req('POST', `/run/${closedSlug}/sessions`, { body: P }); await sleep(1200);
   log('POST /run/:slug/sessions on closed → 410 GONE', closedSession.status === 410, `got ${closedSession.status}`);
   const s = await req('POST', `/run/${slug}/sessions`, { body: P }); await sleep(1200);
-  sessId = s.data?.sessionId; withdrawCode = s.data?.withdrawCode;
-  log('POST /run/:slug/sessions → 201 ids', s.status === 201 && !!sessId && /^[A-Za-z0-9]{8}$/.test(withdrawCode || ''), `code=${withdrawCode}`);
+  sessId = s.data?.sessionId; withdrawCode = s.data?.withdrawCode; sessToken = s.data?.token;
+  log('POST /run/:slug/sessions → 201 ids', s.status === 201 && !!sessId && !!sessToken && /^[A-Za-z0-9]{8}$/.test(withdrawCode || ''), `code=${withdrawCode}`);
   const badBody = await req('POST', `/run/${slug}/sessions`, { body: { deviceInfo: { browser: 'x' } } }); await sleep(1200);
   log('POST sessions bad body → 400', badBody.status === 400, `got ${badBody.status}`);
   const badSlug = await req('POST', '/run/ZZZZZZZZ/sessions', { body: P }); await sleep(1200);
   log('POST sessions bad slug → 404', badSlug.status === 404, `got ${badSlug.status}`);
-  const patch = await req('PATCH', `/run/sessions/${sessId}`, { body: { calibration: { refreshRate: 60, jitter: 1.2, score: 94 } } }); await sleep(1200);
+  const patch = await req('PATCH', `/run/sessions/${sessId}`, { body: { token: sessToken, calibration: { refreshRate: 60, jitter: 1.2, score: 94 } } }); await sleep(1200);
   log('PATCH session calibration → 200', patch.status === 200, `got ${patch.status}`);
-  const patchEmpty = await req('PATCH', `/run/sessions/${sessId}`, { body: {} }); await sleep(1200);
+  const patchEmpty = await req('PATCH', `/run/sessions/${sessId}`, { body: { token: sessToken } }); await sleep(1200);
   log('PATCH session {} → 400', patchEmpty.status === 400, `got ${patchEmpty.status}`);
-  const patchBad = await req('PATCH', '/run/sessions/not-an-id', { body: { status: 'abandoned' } }); await sleep(1200);
+  const patchBad = await req('PATCH', '/run/sessions/not-an-id', { body: { token: sessToken, status: 'abandoned' } }); await sleep(1200);
   log('PATCH session malformed id → 404 (not 500)', patchBad.status === 404, `got ${patchBad.status}`);
-  const up = await req('POST', `/run/sessions/${sessId}/trials`, { body: { trials: [trial(0), trial(1)] } }); await sleep(1200);
+  const up = await req('POST', `/run/sessions/${sessId}/trials`, { body: { token: sessToken, trials: [trial(0), trial(1)] } }); await sleep(1200);
   log('POST trials batch → 201 inserted:2', up.status === 201 && up.data?.inserted === 2, `got ${up.status}`);
-  const upBad = await req('POST', `/run/sessions/${sessId}/trials`, { body: { trials: [{ trialIndex: -1 }] } }); await sleep(1200);
+  const upBad = await req('POST', `/run/sessions/${sessId}/trials`, { body: { token: sessToken, trials: [{ trialIndex: -1 }] } }); await sleep(1200);
   log('POST trials invalid → 400', upBad.status === 400, `got ${upBad.status}`);
-  const upHuge = await req('POST', `/run/sessions/${sessId}/trials`, { body: { trials: Array.from({ length: 501 }, (_, i) => trial(i + 100)) } }); await sleep(1200);
+  const upHuge = await req('POST', `/run/sessions/${sessId}/trials`, { body: { token: sessToken, trials: Array.from({ length: 501 }, (_, i) => trial(i + 100)) } }); await sleep(1200);
   log('POST trials 501 items → 400 (max 500)', upHuge.status === 400, `got ${upHuge.status}`);
-  const done = await req('POST', `/run/sessions/${sessId}/complete`); await sleep(1200);
+  const done = await req('POST', `/run/sessions/${sessId}/complete`, { body: { token: sessToken } }); await sleep(1200);
   log('POST complete → 200 withdrawCode', done.status === 200 && done.data?.withdrawCode === withdrawCode, `got ${done.status}`);
-  const done2 = await req('POST', `/run/sessions/${sessId}/complete`); await sleep(1200);
+  const done2 = await req('POST', `/run/sessions/${sessId}/complete`, { body: { token: sessToken } }); await sleep(1200);
   log('POST complete again → 409', done2.status === 409, `got ${done2.status}`);
-  const lateUp = await req('POST', `/run/sessions/${sessId}/trials`, { body: { trials: [trial(9)] } }); await sleep(1200);
+  const lateUp = await req('POST', `/run/sessions/${sessId}/trials`, { body: { token: sessToken, trials: [trial(9)] } }); await sleep(1200);
   log('POST trials after complete → 409', lateUp.status === 409, `got ${lateUp.status}`);
-  const latePatch = await req('PATCH', `/run/sessions/${sessId}`, { body: { status: 'abandoned' } }); await sleep(1200);
+  const latePatch = await req('PATCH', `/run/sessions/${sessId}`, { body: { token: sessToken, status: 'abandoned' } }); await sleep(1200);
   log('PATCH session after complete → 409', latePatch.status === 409, `got ${latePatch.status}`);
   // beacon on a fresh session
   const s2 = await req('POST', `/run/${slug}/sessions`, { body: P }); await sleep(1200);

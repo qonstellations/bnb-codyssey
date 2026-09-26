@@ -98,7 +98,13 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
 });
 
 export const logoutUser = asyncHandler(async (req, res) => {
-  await User.findByIdAndUpdate(req.userId, { refreshToken: null });
+  const { refreshToken } = req.body;
+  const user = await User.findById(req.userId);
+  if (!user || !refreshToken || user.refreshToken !== hashToken(refreshToken)) {
+    throw new ApiError(401, 'Invalid refresh token', [], '', 'UNAUTHORIZED');
+  }
+  user.refreshToken = null;
+  await user.save();
   res.json(new ApiResponse(200, { ok: true }, 'Logged out successfully'));
 });
 
