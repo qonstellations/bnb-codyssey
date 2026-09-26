@@ -1,8 +1,11 @@
-# API.md — Full API Specification (as built)
+# API Reference — Full HTTP Specification (as built)
 
-> **Version:** 1.1 · **Base URL:** `https://<backend>.vercel.app/api/v1`
+> **Version:** 1.1 · **Base URL:** `http://localhost:3001/api/v1` (local dev — no deployed backend)
 > **Content-Type:** `application/json` unless noted otherwise
-> **30 routes** · reflects the `integration` branch
+> **35 routes** · reflects the `integration` branch · deployment is localhost-only, no public URLs
+
+For a scannable overview see [api-routes.md](api-routes.md). For setup see the
+[root README](../README.md). For system design see [architecture.md](architecture.md).
 
 ---
 
@@ -16,7 +19,8 @@
 - [Experiments](#4-experiments)
 - [Stimuli](#5-stimuli)
 - [AI Generation](#6-ai-generation)
-- [Results](#7-results)
+- [Templates](#7-templates)
+- [Results](#8-results)
 
 ---
 
@@ -72,9 +76,9 @@ All **error** responses share this shape:
 | `404` | `NOT_FOUND` | Resource doesn't exist (incl. malformed ObjectId params) |
 | `409` | `CONFLICT` | Action conflicts with current state (e.g. publishing a closed experiment) |
 | `410` | `GONE` | Experiment is closed |
-| `429` | `RATE_LIMITED` | Too many requests |
-| `429` | `RATE_LIMITED` | Too many requests (Upstash) |
+| `429` | `RATE_LIMITED` | Too many requests (Upstash sliding window, or Groq's own TPM limit) |
 | `502` | `GENERATION_FAILED` | AI provider (Groq) failed |
+| `503` | `AI_NOT_CONFIGURED` | `GROQ_API_KEY` is not set on the server |
 | `500` | `INTERNAL_ERROR` | Unexpected server error |
 
 ### Rate Limiting
@@ -172,13 +176,25 @@ exempt, so unlimited drafts can coexist; publish retries 3× on collision)
   },
   status:         String,        // enum: "in_progress" | "completed" | "abandoned"
   excluded:       Boolean,       // default: false
-  withdrawCode:   String,        // 8-char alphanumeric
+  withdrawCode:   String,        // 8-char alphanumeric, participant-facing
+  tokenHash:      String,        // sha256 of the write token; select:false, never serialised
+  version:        Number,        // published version this participant ran
+  seed:           Number,        // trial-order PRNG seed — replays the exact shuffle
+  engagement: {
+    tabSwitches:    Number,      // times the tab was hidden mid-run
+    blurCount:      Number,      // window blur events mid-run
+    fullscreenExits:Number       // fullscreen exits mid-run
+  },
   startedAt:      Date,          // set on creation
   completedAt:    Date | null    // set on complete
 }
 ```
 
 **Indexes:** `{ experimentId: 1 }`, `{ withdrawCode: 1 }` (unique)
+
+`engagement` is submitted with the completion call and is a data-quality signal: a participant
+who alt-tabbed through the task has contaminated reaction times, and the researcher needs to be
+able to see that. It is behavioural data, so it belongs in the consent text.
 
 ---
 
@@ -227,6 +243,30 @@ exempt, so unlimited drafts can coexist; publish retries 3× on collision)
 ```
 
 **Indexes:** `{ owner: 1 }`
+
+---
+
+### Template
+
+A researcher's own reusable experiment design — a full `draft` snapshot, decoupled from any
+published experiment so it can be reused and stays editable after publication.
+
+```js
+{
+  _id:         ObjectId,   // auto
+  owner:       ObjectId,   // ref → User
+  title:       String,     // required, ≤ 200 chars
+  description: String,     // default "", ≤ 500 chars
+  draft:       Mixed,      // required — a full experimentSchema object
+  createdAt:   Date,       // auto (timestamps)
+  updatedAt:   Date        // auto
+}
+```
+
+**Indexes:** `{ owner: 1, updatedAt: -1 }`
+
+`minimize: false` — without it Mongoose strips empty `description` and `loops: []` on save, and
+the two schema shapes stop round-tripping identically.
 
 ---
 
@@ -573,7 +613,6 @@ Start a new participant session.
 |---|---|---|
 | `400` | `VALIDATION_ERROR` | Missing/invalid `deviceInfo` |
 | `404` | `NOT_FOUND` | Slug doesn't exist |
-| `429` | `RATE_LIMITED` | Too many requests |
 | `410` | `GONE` | Experiment is closed |
 | `429` | `RATE_LIMITED` | Too many requests |
 
@@ -1067,6 +1106,8 @@ Create a copy of an experiment. Copies the current `draft`, resets status to `"d
 ### `POST /api/v1/experiments/:id/publish` 👤
 
 Freeze the current draft as a new published version. Generates a slug on first publish and sets status to `"active"`.
+`participantUrl` is built from `FRONTEND_URL` — set it to `http://<laptop-LAN-IP>:5173` on demo day
+so the link opens on a judge's phone.
 
 **Path params:**
 
@@ -1082,7 +1123,7 @@ Freeze the current draft as a new published version. Generates a slug on first p
 {
   "version": 2,
   "slug": "a8Kp3mNx",
-  "participantUrl": "https://yourapp.vercel.app/run/a8Kp3mNx"
+  "participantUrl": "http://localhost:5173/run/a8Kp3mNx"
 }
 ```
 
@@ -1103,7 +1144,9 @@ Freeze the current draft as a new published version. Generates a slug on first p
 
 ## 5. Stimuli
 
-File management for experiment assets. Upload goes directly from the browser to Vercel Blob — these routes handle the token handoff and metadata records.
+File management for experiment assets. Upload goes directly from the browser to Vercel Blob — these routes
+handle the token handoff and metadata records. Blob is the only remaining external service (storage,
+not deployment); it needs `BLOB_READ_WRITE_TOKEN` in `backend/.env` and fails closed without it.
 
 ---
 
@@ -1248,9 +1291,10 @@ Delete a stimulus record and its file from Vercel Blob. Owner-only (server check
 ## 6. AI Generation
 
 Turns a plain-English description into an experiment built **only from the 6 coded template
-tasks** (`frontend/src/shared/templates`). The model never writes trials: it returns a *recipe*
-that picks library blocks, orders them, and sets repetitions, branches and loops. The backend
-checks the recipe against `services/aiCatalog.js` (repairing up to twice). The client expands it
+tasks** (`frontend/src/shared/templates`). The model (`openai/gpt-oss-120b`, set at the top of
+`src/services/groq.js`) never writes trials: it returns a *recipe* that picks library blocks,
+orders them, and sets repetitions, branches and loops. The backend checks the recipe against
+`services/aiCatalog.js` and runs up to two **repair** rounds when it fails. The client expands it
 with `composeFromTemplates`, so every trial is copied verbatim from the library. The Groq API
 key stays server-side. Owner-authenticated and rate-limited.
 
@@ -1298,10 +1342,11 @@ key stays server-side. Owner-authenticated and rate-limited.
 
 | Field | Type | Description |
 |---|---|---|
+| `kind` | `"draft"` | Discriminator |
 | `recipe` | `object \| null` | Library blocks + branches + loops; `null` when `valid` is `false` |
 | `title`, `notes` | `string`, `string[]` | Suggested title; notes on choices and anything the library can't do |
 | `valid` | `boolean` | Whether the recipe only references existing templates/blocks |
-| `errors` | `string[]` | Recipe problems when `valid` is `false` |
+| `errors` | `string[]` | Recipe problems when `valid` is `false` (message `"Draft generated with validation issues"`) |
 
 **Errors:**
 
@@ -1309,13 +1354,116 @@ key stays server-side. Owner-authenticated and rate-limited.
 |---|---|---|
 | `400` | `VALIDATION_ERROR` | Prompt missing or < 10 chars |
 | `401` | `UNAUTHORIZED` | Missing/invalid access token |
-| `429` | `RATE_LIMITED` | Too many requests, or the Groq token-per-minute limit was hit |
+| `429` | `RATE_LIMITED` | Too many requests — also returned (with a "the AI is busy" message) when Groq itself rate-limits us |
 | `502` | `GENERATION_FAILED` | Groq call failed |
-| `503` | `AI_NOT_CONFIGURED` | `GROQ_API_KEY` missing on the server |
+| `503` | `AI_NOT_CONFIGURED` | `GROQ_API_KEY` is not set on the server |
+
+> Responses are cached in-process for 60 min (max 100 entries). Only **valid** recipes are
+> cached, so "Try again" after a bad generation genuinely re-runs the model. The cache is
+> per-process — see [roadmap.md](roadmap.md#p2--engineering-debt-worth-fixing) if you run more
+> than one instance.
+> `src/api/ai.js` is wired to this route.
 
 ---
 
-## 7. Results
+## 7. Templates
+
+Saved experiment drafts, reusable across experiments. All owner-scoped: another researcher's
+template id returns `404`, never `403`, so ids aren't probeable. Capped at **50 per
+researcher**. The `draft` on create is validated against the same `experimentSchema` the
+builder and the AI pipeline use, so a stored template is always loadable.
+
+---
+
+### `GET /api/v1/templates` 🔒
+
+Lists the caller's templates, newest first. Metadata only — no `draft`, to keep the list light.
+
+```json
+{
+  "statusCode": 200,
+  "data": {
+    "templates": [
+      {
+        "_id": "66f1a2b3c4d5e6f7a8b9c0d1",
+        "title": "Stroop R/G/B/Y",
+        "description": "Incongruent ink colour task",
+        "createdAt": "2026-09-20T10:12:00.000Z",
+        "updatedAt": "2026-09-24T18:03:11.000Z"
+      }
+    ]
+  },
+  "message": "Templates retrieved successfully",
+  "success": true
+}
+```
+
+**Errors:** `401` `UNAUTHORIZED`
+
+---
+
+### `GET /api/v1/templates/:id` 🔒
+
+Returns one template **including its `draft`**, ready to drop onto the builder canvas.
+
+**Response: `200 OK`** — `{ statusCode, data: { template }, message, success }` where `template`
+is the full document (`_id`, `owner`, `title`, `description`, `draft`, `createdAt`, `updatedAt`).
+
+**Errors:**
+
+| Status | Code | When |
+|---|---|---|
+| `401` | `UNAUTHORIZED` | Missing/invalid access token |
+| `404` | `NOT_FOUND` | No such template for this researcher (incl. malformed ObjectId) |
+
+---
+
+### `POST /api/v1/templates` 🔒
+
+**Request body:**
+
+```json
+{
+  "title": "Stroop R/G/B/Y",
+  "description": "Incongruent ink colour task",
+  "draft": { "settings": {}, "blocks": [], "branches": [], "loops": [] }
+}
+```
+
+| Field | Type | Required | Validation |
+|---|---|---|---|
+| `title` | `string` | yes | trimmed, 1–200 chars |
+| `description` | `string` | no | ≤ 500 chars, defaults to `""` |
+| `draft` | `object` | yes | Full `experimentSchema` — blocks, trials, branches, loops and cross-field rules all enforced |
+
+**Response: `201 Created`** — `{ statusCode, data: { template }, message: "Template saved", success: true }`
+
+**Errors:**
+
+| Status | Code | When |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Missing title, or the draft fails `experimentSchema` (per-issue messages in `errors[]`) |
+| `401` | `UNAUTHORIZED` | Missing/invalid access token |
+| `409` | `CONFLICT` | Already at the 50-template limit |
+
+---
+
+### `DELETE /api/v1/templates/:id` 🔒
+
+**Response: `200 OK`** — `{ statusCode, data: { deleted: true }, message, success }`
+
+**Errors:**
+
+| Status | Code | When |
+|---|---|---|
+| `401` | `UNAUTHORIZED` | Missing/invalid access token |
+| `404` | `NOT_FOUND` | No such template for this researcher |
+
+---
+
+---
+
+## 8. Results
 
 Read-only data analysis routes plus an exclude toggle. All owner-only.
 

@@ -1,6 +1,14 @@
 // Keyboard/pointer response capture. event.timeStamp is high-res and monotonic
 // from navigation start, so RT = responseTimeStamp - stimulusOnsetTimeStamp.
 
+/** Safari < 14 reports event.timeStamp as epoch ms while rAF/performance.now() are
+ *  navigation-relative — subtracting them yields ~1.7e12 ms of "RT". Normalise it
+ *  rather than silently storing garbage. */
+function stamp(event) {
+  const t = event.timeStamp
+  return t > 1e12 && performance.timeOrigin ? t - performance.timeOrigin : t
+}
+
 // Physical key → validKeys spelling. event.code survives non-Latin layouts and CapsLock
 // (KeyF → 'f', Digit3 → '3', Space → ' '); event.key is the fallback for everything else.
 export function keyCandidates({ key = '', code = '' }) {
@@ -30,7 +38,7 @@ export function waitForResponse(validKeys, timeoutMs) {
       if (key === undefined) return
       event.preventDefault() // Space must not scroll or press a focused button
       if (event.repeat) return
-      finish({ key, time: event.timeStamp })
+      finish({ key, time: stamp(event) })
     }
 
     // Touch response pad buttons carry data-key; a bare pointer press only counts
@@ -40,7 +48,7 @@ export function waitForResponse(validKeys, timeoutMs) {
       const key = padKey ?? 'click'
       if (!normalizedKeys.includes(key)) return
       event.preventDefault()
-      finish({ key, time: event.timeStamp })
+      finish({ key, time: stamp(event) })
     }
 
     window.addEventListener('keydown', onKeyDown)

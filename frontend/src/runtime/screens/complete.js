@@ -1,7 +1,21 @@
 import { h, renderScreen } from '../dom.js'
 
 export function completeScreen(root, withdrawCode) {
-  const copy = () => navigator.clipboard?.writeText(withdrawCode).catch(() => {})
+  // No clipboard on insecure origins (http://<LAN-IP>) — highlight the code so
+  // the participant can copy it by hand instead of a button that does nothing.
+  const copy = () => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(withdrawCode).catch(() => {})
+      return
+    }
+    const code = root.querySelector('.rt-code')
+    if (!code) return
+    const range = document.createRange()
+    range.selectNodeContents(code)
+    const sel = window.getSelection()
+    sel.removeAllRanges()
+    sel.addRange(range)
+  }
   renderScreen(
     root,
     h('div', { class: 'rt-screen' }, [
