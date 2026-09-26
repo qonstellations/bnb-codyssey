@@ -1,7 +1,7 @@
 import { Renderer } from './renderer.js'
 import { Scheduler } from './scheduler.js'
 import { waitForResponse } from './input.js'
-import { buildBlockTrials } from './randomizer.js'
+import { buildBlockTrials, createSeededRandom } from './randomizer.js'
 import { walkFlow } from './flow.js'
 import { scoreTrial } from './score.js'
 
@@ -136,6 +136,7 @@ export async function runExperiment(
   {
     canvas,
     refreshRate = 60,
+    seed = Date.now(),
     assets = { images: new Map(), audio: new Map() },
     onProgress,
     onFinish,
@@ -147,6 +148,8 @@ export async function runExperiment(
   const scheduler = new Scheduler(refreshRate)
   const worker = new Worker(new URL('./logger.worker.js', import.meta.url), { type: 'module' })
 
+  // One seeded stream for the whole session: the stored seed replays the exact trial order.
+  const random = createSeededRandom(seed)
   let trialIndex = 0
   const blockResults = new Map()
 
@@ -164,7 +167,7 @@ export async function runExperiment(
       prev: prevBlock && { block: prevBlock, accuracy: blockAccuracy(blockResults.get(prevBlock.id)) },
     })
     prevBlock = block
-    const trials = buildBlockTrials(block)
+    const trials = buildBlockTrials(block, { random })
     const records = []
     const scores = []
     for (const trial of trials) {
