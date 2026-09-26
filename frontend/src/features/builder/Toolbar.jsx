@@ -8,6 +8,7 @@ import TemplateGallery from '../../components/TemplateGallery.jsx'
 import { openConfirmModal } from '../../components/ConfirmModal.jsx'
 import AiGenerateModal from './AiGenerateModal.jsx'
 import HowItWorksModal from './HowItWorksModal.jsx'
+import { copyText } from '../../shared/clipboard.js'
 
 const AUTOSAVE_MS = 30000
 
@@ -318,9 +319,12 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
             <Text size="sm">Your experiment is live.</Text>
             <TextInput readOnly value={publishResult.participantUrl} />
             <Button
-              onClick={() => {
-                navigator.clipboard.writeText(publishResult.participantUrl)
-                notifications.show({ message: 'Link copied' })
+              onClick={async () => {
+                const ok = await copyText(publishResult.participantUrl)
+                notifications.show({
+                  color: ok ? undefined : 'yellow',
+                  message: ok ? 'Link copied' : "Couldn't copy automatically — select the link above",
+                })
               }}
             >
               Copy link
