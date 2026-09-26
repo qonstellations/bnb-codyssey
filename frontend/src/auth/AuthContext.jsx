@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import * as authApi from "../api/auth.js";
-import { setToken, setOnUnauthorized } from "../api/client.js";
+import { setToken, setOnUnauthorized, setOnRefreshed } from "../api/client.js";
 
 const TOKEN_KEY = "authToken";
 const REFRESH_KEY = "refreshToken";
@@ -79,6 +79,12 @@ export function AuthProvider({ children }) {
   // Restore session on mount; wire 401 recovery for the api client.
   useEffect(() => {
     setOnUnauthorized(() => logoutSilent());
+    // Backend rotates the refresh token on every use — persist the new one or the
+    // next silent refresh sends an already-invalidated token and force-logs-out.
+    setOnRefreshed((token, refreshToken) => {
+      storeSession(token, refreshToken);
+      setTokenState(token);
+    });
     const stored = readStoredToken();
     if (!stored) {
       setIsLoading(false);

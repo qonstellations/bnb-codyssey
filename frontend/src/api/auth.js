@@ -1,4 +1,4 @@
-import { request } from "./client.js";
+import { readRefreshToken, request } from "./client.js";
 
 export function register(name, email, password) {
   return request("POST", "/auth/register", { name, email, password });
@@ -13,7 +13,8 @@ export function refresh(refreshToken) {
 }
 
 export function logout() {
-  return request("POST", "/auth/logout");
+  const refreshToken = readRefreshToken();
+  return request("POST", "/auth/logout", refreshToken ? { refreshToken } : {});
 }
 
 export function getMe() {
