@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Alert, PasswordInput, TextInput } from "@mantine/core";
-import { useAuth, DEMO_CREDS } from "./AuthContext.jsx";
+import { useAuth } from "./AuthContext.jsx";
 import AgShell from "../components/AgShell.jsx";
 
 function LoginPage() {
-  const { user, login, continueAsGuest } = useAuth();
+  const { user, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState("");
@@ -62,26 +62,10 @@ function LoginPage() {
                 {error}
               </Alert>
             )}
-            {DEMO_CREDS && (
-              <Alert color="blue" mt="md">
-                Demo login — email: <b>{DEMO_CREDS.email}</b> · password: <b>{DEMO_CREDS.password}</b>
-              </Alert>
-            )}
             <button type="submit" className="ag-pill" style={{ marginTop: 28 }} disabled={submitting}>
               {submitting ? "…" : "Log in"}
             </button>
           </form>
-            <button
-              type="button"
-              className="ag-pill ghost"
-              style={{ marginTop: 12 }}
-              onClick={() => {
-                continueAsGuest();
-                navigate("/dashboard", { replace: true });
-              }}
-            >
-              Continue as guest
-            </button>
         </div>
         <p className="ag-auth-alt ag-reveal">
           No account? <Link to="/signup">Sign up</Link>
