@@ -13,6 +13,7 @@ const router = Router();
 
 const createSchema = z.object({
   title: z.string().max(200).optional(),
+  draft: z.any().optional(), // e.g. created from a template
 });
 
 const updateSchema = z
@@ -59,6 +60,7 @@ router.post(
     const experiment = await Experiment.create({
       owner: req.userId,
       title: req.body.title || 'Untitled Experiment',
+      ...(req.body.draft && { draft: req.body.draft }),
     });
 
     res.status(201).json(new ApiResponse(201, { experiment }, 'Experiment created successfully'));

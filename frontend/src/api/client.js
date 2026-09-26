@@ -93,7 +93,8 @@ export async function request(method, path, body, { retry = true } = {}) {
 
   const data = await res.json().catch(() => null);
   if (!res.ok) throw toError(res.status, data);
-  return data;
+  // Backend wraps every success as ApiResponse { statusCode, data, message, success } — hand callers the payload.
+  return data && typeof data === "object" && "success" in data && "data" in data ? data.data : data;
 }
 
 export const apiBase = BASE;

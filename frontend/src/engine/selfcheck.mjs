@@ -3,6 +3,7 @@
 import assert from 'node:assert'
 import { createSeededRandom, shuffleWithMaxRepeats, buildBlockTrials } from './randomizer.js'
 import { walkFlow } from './flow.js'
+import { scoreTrial } from './score.js'
 
 // Seeded random is reproducible.
 const r1 = createSeededRandom(42)
@@ -48,5 +49,12 @@ const branchLoopExperiment = {
 }
 const branchVisits = [...walkFlow(branchLoopExperiment, { getMetrics: () => ({ accuracy: 0 }), maxSteps: 20 })]
 assert.strictEqual(branchVisits.length, 20, 'branch guard should cap at maxSteps')
+
+// Go/no-go: withholding on a correctKey-null trial is correct, pressing is wrong.
+assert.strictEqual(scoreTrial({ withhold: true, correctKey: null }, null), true, 'withhold should be correct')
+assert.strictEqual(scoreTrial({ withhold: true, correctKey: null }, { key: ' ' }), false, 'press on no-go should be wrong')
+assert.strictEqual(scoreTrial({ correctKey: null }, { key: '3' }), null, 'rating trial (no correct key) is unscored')
+assert.strictEqual(scoreTrial({ correctKey: 'f' }, null), null, 'timeout on keyed trial stays unscored')
+assert.strictEqual(scoreTrial({ correctKey: 'f' }, { key: 'f' }), true)
 
 console.log('engine selfcheck: all assertions passed')
