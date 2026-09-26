@@ -30,12 +30,29 @@
 
 ### Response Envelope
 
-All **success** responses return the relevant data directly at the top level.
+All **success** responses share this envelope, with the route payload nested under `data`:
+
+```json
+{
+  "statusCode": 200,
+  "data": {
+    "experiment": { "..." : "..." }
+  },
+  "message": "Experiment retrieved successfully",
+  "success": true
+}
+```
+
+(The `export?format=json` download is the one exception — it returns the raw array.)
 
 All **error** responses share this shape:
 
 ```json
 {
+  "statusCode": 404,
+  "success": false,
+  "message": "Experiment not found",
+  "errors": [],
   "error": {
     "code": "NOT_FOUND",
     "message": "Experiment not found"
@@ -1060,12 +1077,13 @@ Get a pre-signed Vercel Blob upload URL. The frontend uses this to upload the fi
 | `filename` | `string` | yes | max 255 chars |
 | `contentType` | `string` | yes | must start with `image/`, `audio/`, or `video/` |
 
-**Response: `200 OK`**
+**Response: `200 OK`** (envelope `data` holds the client token the
+`@vercel/blob/client` `upload()` flow needs — pass this route as its `handleUploadUrl`)
 
 ```json
 {
-  "uploadUrl": "https://blob.vercel-storage.com/...",
-  "token": "vercel_blob_rw_..."
+  "type": "blob.generate-client-token",
+  "clientToken": "vercel_blob_client_..."
 }
 ```
 

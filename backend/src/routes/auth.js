@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { z } from 'zod';
 import User from '../models/User.js';
-import { requireAuth, validate } from '../middleware.js';
+import { requireAuth, validate, rateLimit } from '../middleware.js';
 import { asyncHandler, ApiError, ApiResponse } from '../utils/index.js';
 
 const router = Router();
@@ -44,6 +44,7 @@ function hashToken(token) {
 
 router.post(
   '/register',
+  rateLimit,
   validate(registerSchema),
   asyncHandler(async (req, res) => {
     const { name, email, password } = req.body;
@@ -78,6 +79,7 @@ router.post(
 
 router.post(
   '/login',
+  rateLimit,
   validate(loginSchema),
   asyncHandler(async (req, res) => {
     const { email, password } = req.body;
@@ -107,6 +109,7 @@ router.post(
 
 router.post(
   '/refresh',
+  rateLimit,
   validate(refreshSchema),
   asyncHandler(async (req, res) => {
     const { refreshToken } = req.body;

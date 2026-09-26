@@ -2,10 +2,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { del } from '@vercel/blob';
 import Stimulus from '../models/Stimulus.js';
-import { requireAuth, validate } from '../middleware.js';
+import { requireAuth, validate, requireObjectId } from '../middleware.js';
 import { asyncHandler, ApiError, ApiResponse } from '../utils/index.js';
 
 const router = Router();
+
+router.param('id', requireObjectId('id', 'Stimulus not found'));
 
 // ─── Schemas ───────────────────────────────────────────────
 
@@ -37,8 +39,13 @@ router.post(
   asyncHandler(async (req, res) => {
     const { handleUpload } = await import('@vercel/blob/client');
 
+    // The SDK's handleUpload speaks client events, not our {filename, contentType}
+    // contract — synthesize the generate-token event so API.md keeps its shape.
     const jsonResponse = await handleUpload({
-      body: req.body,
+      body: {
+        type: 'blob.generate-client-token',
+        payload: { pathname: req.body.filename },
+      },
       request: req,
       onBeforeGenerateToken: async () => ({
         allowedContentTypes: [req.body.contentType],
