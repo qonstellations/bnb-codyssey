@@ -15,10 +15,11 @@ const experimentSchema = new mongoose.Schema(
     slug: { type: String, default: null },
     status: { type: String, enum: ['draft', 'active', 'closed'], default: 'draft' },
   },
-  { timestamps: true }
+  { timestamps: true, minimize: false }
 );
 
 experimentSchema.index({ owner: 1 });
-experimentSchema.index({ slug: 1 }, { unique: true, sparse: true });
+// ponytail: partial index — drafts (slug null/missing) skip it, real slugs stay unique
+experimentSchema.index({ slug: 1 }, { unique: true, partialFilterExpression: { slug: { $type: 'string' } } });
 
 export default mongoose.model('Experiment', experimentSchema);

@@ -143,7 +143,7 @@ router.post(
     const copy = await Experiment.create({
       owner: req.userId,
       title: `${source.title} (Copy)`,
-      draft: JSON.parse(JSON.stringify(source.draft)),
+      draft: JSON.parse(JSON.stringify(source.draft ?? {})),
     });
 
     res.status(201).json(new ApiResponse(201, { experiment: copy }, 'Experiment duplicated successfully'));
@@ -168,7 +168,7 @@ router.post(
 
     exp.versions.push({
       version: nextVersion,
-      snapshot: JSON.parse(JSON.stringify(exp.draft)),
+      snapshot: JSON.parse(JSON.stringify(exp.draft ?? {})),
       publishedAt: new Date(),
     });
 
