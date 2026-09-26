@@ -19,12 +19,16 @@ export function keyCandidates({ key = '', code = '' }) {
   return out
 }
 
+// Returns a promise with an attached .cancel() — used to tear down the listener early
+// when the caller moves on before timeoutMs (e.g. fixation ending because a later
+// phase's own waitForResponse takes over).
 export function waitForResponse(validKeys, timeoutMs) {
-  return new Promise((resolve) => {
+  let finish
+  const promise = new Promise((resolve) => {
     let done = false
     const normalizedKeys = validKeys.map((k) => k.toLowerCase())
 
-    function finish(result) {
+    finish = (result) => {
       if (done) return
       done = true
       window.removeEventListener('keydown', onKeyDown)
@@ -58,4 +62,6 @@ export function waitForResponse(validKeys, timeoutMs) {
       ? setTimeout(() => finish(null), timeoutMs)
       : null
   })
+  promise.cancel = () => finish(null)
+  return promise
 }

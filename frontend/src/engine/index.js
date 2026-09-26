@@ -64,44 +64,57 @@ export function blockAccuracy(scores = []) {
 
 async function runTrial(trial, { renderer, scheduler, assets, blockId, trialIndex }) {
   const fixFrames = scheduler.msToFrames(trial.fixationDuration)
+  let early = null
   if (fixFrames > 0) {
+    // Listen for a press during fixation too — an anticipatory response before the
+    // stimulus appears ("too early") is its own outcome, not just a wrong answer.
+    const earlyResponse = waitForResponse(trial.validKeys, trial.fixationDuration)
+    earlyResponse.then((r) => {
+      early = r
+    })
     await scheduler.run(fixFrames, () => {
       renderer.clear()
       renderer.drawFixation()
-      return false
+      return early !== null
     })
+    earlyResponse.cancel()
   }
 
-  const intendedFrames = scheduler.msToFrames(trial.duration)
   let responded = null
-  let responsePromise
+  let rt = null
+  let frameResult = null
+  if (!early) {
+    const intendedFrames = scheduler.msToFrames(trial.duration)
+    let responsePromise
 
-  const frameResult = await scheduler.run(intendedFrames, (frame) => {
-    // Armed on the onset frame so the response window and its timeout start with the
-    // stimulus, and no press can predate onset (negative RT).
-    if (frame === 0) {
-      responsePromise = waitForResponse(trial.validKeys, trial.timeoutMs ?? trial.duration).then((r) => {
-        responded = r
-      })
-    }
-    renderer.clear()
-    if (trial.stimulus.type === 'text') {
-      renderer.drawText(trial.stimulus.content, trial.stimulus.color ? { color: trial.stimulus.color } : undefined)
-    } else if (trial.stimulus.type === 'image') {
-      const img = assets.images.get(trial.stimulus.url)
-      if (img) renderer.drawImage(img)
-    }
-    return responded !== null
-  })
+    frameResult = await scheduler.run(intendedFrames, (frame) => {
+      // Armed on the onset frame so the response window and its timeout start with the
+      // stimulus, and no press before this point was already caught as "too early" above.
+      if (frame === 0) {
+        responsePromise = waitForResponse(trial.validKeys, trial.timeoutMs ?? trial.duration).then((r) => {
+          responded = r
+        })
+      }
+      renderer.clear()
+      if (trial.stimulus.type === 'text') {
+        renderer.drawText(trial.stimulus.content, trial.stimulus.color ? { color: trial.stimulus.color } : undefined)
+      } else if (trial.stimulus.type === 'image') {
+        const img = assets.images.get(trial.stimulus.url)
+        if (img) renderer.drawImage(img)
+      }
+      return responded !== null
+    })
 
-  await responsePromise
+    await responsePromise
+    rt = responded ? responded.time - frameResult.onsetTime : null
+  }
 
-  const correct = scoreTrial(trial, responded)
-  const rt = responded ? responded.time - frameResult.onsetTime : null
+  // An early press pre-empts normal scoring: it's wrong regardless of withhold/correctKey.
+  const correct = early ? false : scoreTrial(trial, responded)
 
   if (trial.feedback && (trial.feedback.correct || trial.feedback.incorrect)) {
-    const tooSlow = !responded && !trial.withhold && trial.correctKey != null
-    const text = correct ? trial.feedback.correct : tooSlow ? 'Too slow' : trial.feedback.incorrect
+    const tooLate = !early && !responded && !trial.withhold && trial.correctKey != null
+    const text = early ? 'Too early' : correct ? trial.feedback.correct : tooLate ? 'Too late' : trial.feedback.incorrect
     if (text) {
       renderer.clear()
       renderer.drawFeedback(text, { correct: !!correct })
@@ -119,14 +132,13 @@ async function runTrial(trial, { renderer, scheduler, assets, blockId, trialInde
     blockId,
     condition: trial.condition,
     stimulus: trial.stimulus,
-    response: responded?.key ?? null,
+    response: early?.key ?? responded?.key ?? null,
     correct,
     rt,
-    frameData: {
-      intended: frameResult.intended,
-      actual: frameResult.actual,
-      dropped: frameResult.dropped,
-    },
+    tooEarly: !!early,
+    frameData: frameResult
+      ? { intended: frameResult.intended, actual: frameResult.actual, dropped: frameResult.dropped }
+      : { intended: 0, actual: 0, dropped: 0 },
   }
 }
 
