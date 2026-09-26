@@ -148,7 +148,9 @@ Built in `frontend/src/engine`. Pure JavaScript, **no React, no network during t
 - [x] Toolbar: editable title, undo/redo, save + 30 s autosave when dirty, preview, publish
 - [x] Stimuli: dropzone (direct-to-Blob via `@vercel/blob/client`), library, picker in the node inspector
 - [x] Templates: Stroop, Flanker, Simple RT
-- [ ] Real React Flow drag-from-palette (nodes are added from the toolbar, not dragged)
+- [x] Real React Flow drag-from-palette (`dataTransfer` + `screenToFlowPosition` in `Canvas.jsx`);
+      the click-to-append shortcut in the toolbar is kept alongside it as the faster path for
+      first-time users
 
 ---
 
@@ -174,8 +176,8 @@ Built in `frontend/src/engine`. Pure JavaScript, **no React, no network during t
 
 ## Phase 7 — Stretch
 - [x] AI experiment generation, backend-side (Groq) + schema-validated
-- [~] Client wiring: `src/api/ai.js` still posts to `/ai/generate-experiment` with `{ description }`;
-      the real route is `POST /generate` with `{ prompt }` returning `{ draft, valid, errors }`
+- [x] Client wiring: `src/api/ai.js` posts to `POST /generate` with `{ prompt }` and reads
+      `data.draft` + `data.valid`; the modal also handles the `kind: "questions"` clarify response
 - [x] Template library (Stroop, Flanker, Simple RT)
 - [ ] Bot-detection score
 - [ ] Participant simulator
@@ -207,10 +209,10 @@ Prioritised for the demo. P0 = the demo breaks without it.
 
 | # | Bug | Root cause | Fix | Size |
 |---|---|---|---|---|
-| 1 | AI modal 404s | client `POST /ai/generate-experiment {description}` vs server `POST /generate {prompt}` | point `api/ai.js` at `/generate`, send `{ prompt }`, read `data.draft` + `data.valid` | 3 lines |
-| 2 | Judge's phone can't open the participant link on localhost | a phone's `localhost` is the phone, not your laptop | see [Demo on a phone](#demo-on-a-phone) — `vite --host`, LAN IP in `FRONTEND_URL`/`CORS_ORIGIN`, or a tunnel | 5 min setup |
-| 3 | Copy buttons silently fail on a LAN phone | `navigator.clipboard` needs a secure context; `http://10.0.x.x` isn't one | wrap the three `navigator.clipboard` calls in `try/catch` and select the code text instead (the code is already on screen) | ~10 lines |
-| 4 | Any fresh Atlas cluster breaks on the 2nd experiment | old non-partial `slug_1` index rejects duplicate `null` slugs | already fixed on the current cluster; run `db.experiments.dropIndex("slug_1")` once on any new one | 1 command |
+| 1 | ~~AI modal 404s~~ | client posted `POST /ai/generate-experiment {description}` vs server `POST /generate {prompt}` | **done** — `api/ai.js` posts to `/generate` with `{ prompt }` and handles the `kind: "questions"` clarify response | 3 lines |
+| 2 | Judge's phone can't open the participant link on localhost | a phone's `localhost` is the phone, not your laptop | **partly done** — `--host` and the LAN `FRONTEND_URL`/`CORS_ORIGIN` vars are documented; a public tunnel for the demo is still the open item | 5 min setup |
+| 3 | ~~Copy buttons silently fail on a LAN phone~~ | `navigator.clipboard` needs a secure context; `http://10.0.x.x` isn't one | **done** — the three call sites go through `shared/clipboard.js`, which falls back to selecting the on-screen code | ~10 lines |
+| 4 | ~~Any fresh Atlas cluster breaks on the 2nd experiment~~ | old non-partial `slug_1` index rejects duplicate `null` slugs | **done** — `db.js` inspects `experiments.indexes()` on boot, drops a non-partial `slug_1`, and re-syncs, so new clusters self-heal | 12 lines |
 
 ### P1 — credibility before judges look closely
 

@@ -61,10 +61,10 @@ function Account() {
             </Text>
             <Group gap="xs">
               <Text size="sm" ff="monospace">
-                {user?.id ?? "—"}
+                {user?._id ?? "—"}
               </Text>
-              {user?.id && (
-                <CopyButton value={user.id}>
+              {user?._id && (
+                <CopyButton value={String(user._id)}>
                   {({ copied, copy }) => (
                     <Tooltip label={copied ? "Copied" : "Copy"}>
                       <ActionIcon variant="subtle" onClick={copy} aria-label="Copy user ID">

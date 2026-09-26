@@ -2,7 +2,7 @@
 
 > **Version:** 1.1 · **Base URL:** `http://localhost:3001/api/v1` (local dev — no deployed backend)
 > **Content-Type:** `application/json` unless noted otherwise
-> **30 routes** · reflects the `integration` branch · deployment is localhost-only, no public URLs
+> **34 routes** · reflects the `integration` branch · deployment is localhost-only, no public URLs
 
 ---
 
@@ -16,7 +16,8 @@
 - [Experiments](#4-experiments)
 - [Stimuli](#5-stimuli)
 - [AI Generation](#6-ai-generation)
-- [Results](#7-results)
+- [Templates](#7-templates)
+- [Results](#8-results)
 
 ---
 
@@ -72,9 +73,9 @@ All **error** responses share this shape:
 | `404` | `NOT_FOUND` | Resource doesn't exist (incl. malformed ObjectId params) |
 | `409` | `CONFLICT` | Action conflicts with current state (e.g. publishing a closed experiment) |
 | `410` | `GONE` | Experiment is closed |
-| `429` | `RATE_LIMITED` | Too many requests |
-| `429` | `RATE_LIMITED` | Too many requests (Upstash) |
+| `429` | `RATE_LIMITED` | Too many requests (Upstash sliding window, or Groq's own TPM limit) |
 | `502` | `GENERATION_FAILED` | AI provider (Groq) failed |
+| `503` | `AI_NOT_CONFIGURED` | `GROQ_API_KEY` is not set on the server |
 | `500` | `INTERNAL_ERROR` | Unexpected server error |
 
 ### Rate Limiting
@@ -227,6 +228,30 @@ exempt, so unlimited drafts can coexist; publish retries 3× on collision)
 ```
 
 **Indexes:** `{ owner: 1 }`
+
+---
+
+### Template
+
+A researcher's own reusable experiment design — a full `draft` snapshot, decoupled from any
+published experiment so it can be reused and stays editable after publication.
+
+```js
+{
+  _id:         ObjectId,   // auto
+  owner:       ObjectId,   // ref → User
+  title:       String,     // required, ≤ 200 chars
+  description: String,     // default "", ≤ 500 chars
+  draft:       Mixed,      // required — a full experimentSchema object
+  createdAt:   Date,       // auto (timestamps)
+  updatedAt:   Date        // auto
+}
+```
+
+**Indexes:** `{ owner: 1, updatedAt: -1 }`
+
+`minimize: false` — without it Mongoose strips empty `description` and `loops: []` on save, and
+the two schema shapes stop round-tripping identically.
 
 ---
 
@@ -559,7 +584,6 @@ Start a new participant session.
 |---|---|---|
 | `400` | `VALIDATION_ERROR` | Missing/invalid `deviceInfo` |
 | `404` | `NOT_FOUND` | Slug doesn't exist |
-| `429` | `RATE_LIMITED` | Too many requests |
 | `410` | `GONE` | Experiment is closed |
 | `429` | `RATE_LIMITED` | Too many requests |
 
@@ -1238,8 +1262,14 @@ Delete a stimulus record and its file from Vercel Blob. Owner-only (server check
 ## 6. AI Generation
 
 Turns a plain-English description into a schema-validated experiment draft. The Groq API key
-stays server-side; the model is `llama-3.3-70b-versatile` with a system prompt that pins the
+stays server-side; the model is `openai/gpt-oss-120b` with a system prompt that pins the
 output to the experiment JSON contract. Rate-limited and owner-authenticated.
+
+The pipeline runs up to three Groq round-trips: a **clarify** step (the model may return 1–5
+clarifying questions instead of a draft), a **design** step that emits compact `trialTypes`
+(counts rather than N individual trials, to stay inside free-tier token-per-minute limits), and
+up to two **repair** rounds when validation fails. The model id is a single constant at the top
+of `src/services/groq.js` — swap it there.
 
 ---
 
@@ -1256,13 +1286,45 @@ output to the experiment JSON contract. Rate-limited and owner-authenticated.
 | Field | Type | Required | Validation |
 |---|---|---|---|
 | `prompt` | `string` | yes | 10–2000 chars |
+| `answers` | `array` | no | Up to 5 `{ question, answer }` pairs, each ≤ 500 chars — the replies to a previous `kind: "questions"` response |
+| `forceDraft` | `boolean` | no | Skip the clarify step and design immediately |
 
-**Response: `200 OK`**
+The flow is stateless: the first call may come back with clarifying questions, the follow-up
+call passes `answers` (or `forceDraft: true`) and always returns a draft.
+
+**Response A: `200 OK` — clarification needed**
 
 ```json
 {
   "statusCode": 200,
   "data": {
+    "kind": "questions",
+    "questions": [
+      { "id": "q1", "question": "Which response method?", "options": ["Keyboard", "Mouse"] },
+      { "id": "q2", "question": "Should feedback be shown?", "options": [] }
+    ]
+  },
+  "message": "Clarification needed",
+  "success": true
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `kind` | `"questions"` | Discriminator — no `draft` in this response |
+| `questions[].id` | `string` | `q1`…`q5` (server-assigned if the model omits one) |
+| `questions[].question` | `string` | ≤ 300 chars |
+| `questions[].options` | `array` | 0–5 suggested answers; empty means free-text |
+
+**Response B: `200 OK` — draft produced**
+
+```json
+{
+  "statusCode": 200,
+  "data": {
+    "kind": "draft",
+    "title": "Flanker task",
+    "notes": ["Used arrow keys; approximated the original manual key assignment."],
     "draft": { "settings": {}, "blocks": [], "branches": [], "loops": [] },
     "valid": true,
     "errors": []
@@ -1274,9 +1336,16 @@ output to the experiment JSON contract. Rate-limited and owner-authenticated.
 
 | Field | Type | Description |
 |---|---|---|
-| `draft` | `object` | Candidate experiment JSON (goes straight into the builder canvas) |
-| `valid` | `boolean` | Whether the draft passed the shared Zod schema |
-| `errors` | `array` | Zod issues when `valid` is `false` |
+| `kind` | `"draft"` | Discriminator |
+| `title` | `string` | Suggested experiment title |
+| `notes` | `array` | Approximations the model had to make (carried forward from the first round if a repair drops them) |
+| `draft` | `object` | Candidate experiment JSON — goes straight onto the builder canvas |
+| `valid` | `boolean` | Whether the draft passed the shared Zod schema **and** the semantic component check |
+| `errors` | `array` | Readable issues when `valid` is `false` |
+
+`valid: false` still returns a `draft` (the raw model output, normalised) so the builder can
+show it with the problems highlighted rather than discarding the work. The message differs:
+`"Draft generated with validation issues"`.
 
 **Errors:**
 
@@ -1284,18 +1353,115 @@ output to the experiment JSON contract. Rate-limited and owner-authenticated.
 |---|---|---|
 | `400` | `VALIDATION_ERROR` | Prompt missing or < 10 chars |
 | `401` | `UNAUTHORIZED` | Missing/invalid access token |
-| `429` | `RATE_LIMITED` | Too many requests |
+| `429` | `RATE_LIMITED` | Too many requests — also returned (with a "the AI is busy" message) when Groq itself rate-limits us |
 | `502` | `GENERATION_FAILED` | Groq call failed or returned non-JSON |
+| `503` | `AI_NOT_CONFIGURED` | `GROQ_API_KEY` is not set on the server |
 
-> ⚠️ **Client not yet wired:** `src/api/ai.js` still calls `/ai/generate-experiment` with
-> `{ description }`. Update it to `request("POST", "/generate", { prompt })` and read
-> `data.draft` / `data.valid`.
+> Responses are cached in-process for 60 min (max 100 entries). Only **valid** drafts are
+> cached, so "Try again" after a bad generation genuinely re-runs the model. The cache is
+> per-process — see PLAN.md if you run more than one instance.
+> `src/api/ai.js` is wired to this route.
+
+---
+
+## 7. Templates
+
+Saved experiment drafts, reusable across experiments. All owner-scoped: another researcher's
+template id returns `404`, never `403`, so ids aren't probeable. Capped at **50 per
+researcher**. The `draft` on create is validated against the same `experimentSchema` the
+builder and the AI pipeline use, so a stored template is always loadable.
+
+---
+
+### `GET /api/v1/templates` 🔒
+
+Lists the caller's templates, newest first. Metadata only — no `draft`, to keep the list light.
+
+```json
+{
+  "statusCode": 200,
+  "data": {
+    "templates": [
+      {
+        "_id": "66f1a2b3c4d5e6f7a8b9c0d1",
+        "title": "Stroop R/G/B/Y",
+        "description": "Incongruent ink colour task",
+        "createdAt": "2026-09-20T10:12:00.000Z",
+        "updatedAt": "2026-09-24T18:03:11.000Z"
+      }
+    ]
+  },
+  "message": "Templates retrieved successfully",
+  "success": true
+}
+```
+
+**Errors:** `401` `UNAUTHORIZED`
+
+---
+
+### `GET /api/v1/templates/:id` 🔒
+
+Returns one template **including its `draft`**, ready to drop onto the builder canvas.
+
+**Response: `200 OK`** — `{ statusCode, data: { template }, message, success }` where `template`
+is the full document (`_id`, `owner`, `title`, `description`, `draft`, `createdAt`, `updatedAt`).
+
+**Errors:**
+
+| Status | Code | When |
+|---|---|---|
+| `401` | `UNAUTHORIZED` | Missing/invalid access token |
+| `404` | `NOT_FOUND` | No such template for this researcher (incl. malformed ObjectId) |
+
+---
+
+### `POST /api/v1/templates` 🔒
+
+**Request body:**
+
+```json
+{
+  "title": "Stroop R/G/B/Y",
+  "description": "Incongruent ink colour task",
+  "draft": { "settings": {}, "blocks": [], "branches": [], "loops": [] }
+}
+```
+
+| Field | Type | Required | Validation |
+|---|---|---|---|
+| `title` | `string` | yes | trimmed, 1–200 chars |
+| `description` | `string` | no | ≤ 500 chars, defaults to `""` |
+| `draft` | `object` | yes | Full `experimentSchema` — blocks, trials, branches, loops and cross-field rules all enforced |
+
+**Response: `201 Created`** — `{ statusCode, data: { template }, message: "Template saved", success: true }`
+
+**Errors:**
+
+| Status | Code | When |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Missing title, or the draft fails `experimentSchema` (per-issue messages in `errors[]`) |
+| `401` | `UNAUTHORIZED` | Missing/invalid access token |
+| `409` | `CONFLICT` | Already at the 50-template limit |
+
+---
+
+### `DELETE /api/v1/templates/:id` 🔒
+
+**Response: `200 OK`** — `{ statusCode, data: { deleted: true }, message, success }`
+
+**Errors:**
+
+| Status | Code | When |
+|---|---|---|
+| `401` | `UNAUTHORIZED` | Missing/invalid access token |
+| `404` | `NOT_FOUND` | No such template for this researcher |
 
 ---
 
 ---
 
-## 7. Results
+## 8. Results
 
 Read-only data analysis routes plus an exclude toggle. All owner-only.
 
