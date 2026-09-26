@@ -4,7 +4,8 @@ import assert from 'node:assert'
 import { createSeededRandom, shuffleWithMaxRepeats, buildBlockTrials } from './randomizer.js'
 import { walkFlow } from './flow.js'
 import { scoreTrial } from './score.js'
-import { blockAccuracy, branchScore } from './index.js'
+import { blockAccuracy, blockMetrics, branchScore } from './index.js'
+import { simulate } from './simulate.js'
 import { keyCandidates } from './input.js'
 
 // Seeded random is reproducible.
@@ -76,5 +77,40 @@ assert.strictEqual(scoreTrial({ withhold: true, correctKey: null }, { key: ' ' }
 assert.strictEqual(scoreTrial({ correctKey: null }, { key: '3' }), null, 'rating trial (no correct key) is unscored')
 assert.strictEqual(scoreTrial({ correctKey: 'f' }, null), null, 'timeout on keyed trial stays unscored')
 assert.strictEqual(scoreTrial({ correctKey: 'f' }, { key: 'f' }), true)
+
+// Branch metrics: meanRt over correct responses only; completionRate over keyed, non-withhold trials.
+{
+  const trials = [{ correctKey: 'f' }, { correctKey: 'f' }, { correctKey: 'f' }, { withhold: true }]
+  const records = [
+    { correct: true, rt: 400, response: 'f' },
+    { correct: false, rt: 900, response: 'j' },
+    { correct: null, rt: null, response: null },
+    { correct: true, rt: null, response: null },
+  ]
+  const m = blockMetrics(trials, records, [true, false, false, true])
+  assert.strictEqual(m.meanRt, 400, 'meanRt ignores incorrect and unanswered trials')
+  assert.strictEqual(m.completionRate, 2 / 3, 'completionRate = answered keyed trials / keyed trials')
+  assert.strictEqual(m.accuracy, 0.5)
+  assert.strictEqual(blockMetrics([{ correctKey: 'f' }], [{ correct: false, rt: 500, response: 'j' }], [false]).meanRt, undefined)
+}
+
+// Simulator: deterministic, and a "redo practice if accuracy < 0.8" branch fires by accuracy.
+{
+  const trial = (id) => ({ id, stimulus: { type: 'text', content: 'X' }, duration: 1000, fixationDuration: 500, validKeys: ['f', 'j'], correctKey: 'f', condition: 'c' })
+  const exp = {
+    blocks: [
+      { id: 'practice', label: 'Practice', shuffle: false, trials: Array.from({ length: 10 }, (_, i) => trial(`p${i}`)) },
+      { id: 'main', label: 'Main', shuffle: false, trials: [trial('m0')] },
+    ],
+    branches: [{ from: 'practice', to: 'practice', condition: { metric: 'accuracy', operator: '<', value: 0.8 } }],
+    loops: [],
+  }
+  const a = simulate(exp, { participants: 50, seed: 7 })
+  assert.deepStrictEqual(a, simulate(exp, { participants: 50, seed: 7 }), 'same seed → same dry run')
+  assert.ok(a.medianMs > 0 && a.p90Ms >= a.medianMs)
+  assert.strictEqual(simulate(exp, { participants: 50, accuracy: 1 }).repeatedShare, 0, 'perfect accuracy never retries')
+  assert.ok(simulate(exp, { participants: 50, accuracy: 0.3 }).repeatedShare > 0.9, 'poor accuracy retries practice')
+  assert.strictEqual(a.cappedShare, 0)
+}
 
 console.log('engine selfcheck: all assertions passed')

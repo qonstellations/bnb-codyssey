@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   Button,
+  Checkbox,
   Group,
   NumberInput,
   Select,
@@ -106,11 +107,18 @@ export default function TrialForm({ trial, onSave, onCancel }) {
         />
         <TextInput
           label="Correct key"
-          value={value.correctKey ?? ''}
+          value={value.withhold ? '' : (value.correctKey ?? '')}
+          disabled={!!value.withhold}
           error={keyMismatch ? 'Correct key must be one of the valid keys' : null}
           onChange={(e) => patch({ correctKey: e.currentTarget.value || null })}
         />
       </Group>
+
+      <Checkbox
+        label="No-go trial — the correct response is to not press anything"
+        checked={!!value.withhold}
+        onChange={(e) => patch({ withhold: e.currentTarget.checked, correctKey: e.currentTarget.checked ? null : (value.validKeys[0] ?? null) })}
+      />
 
       <Group grow>
         <NumberInput
