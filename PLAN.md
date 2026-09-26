@@ -2,7 +2,7 @@
 
 A step-by-step checklist. Work top to bottom. Tick each box when done.
 
-**Stack:** Vite + React (JavaScript) · React Router · Mantine · React Flow · Zustand · Zod · Express on Vercel · MongoDB Atlas + Mongoose · Clerk · Vercel Blob · Upstash Redis
+**Stack:** Vite + React (JavaScript) · React Router · Mantine · React Flow · Zustand · Zod · Express on Vercel · MongoDB Atlas + Mongoose · JWT Auth · Vercel Blob · Upstash Redis
 
 **Golden rule:** During a trial, the browser makes **zero network calls**. Load everything first, run offline, upload after.
 
@@ -16,7 +16,7 @@ A step-by-step checklist. Work top to bottom. Tick each box when done.
 - [ ] MongoDB Atlas free cluster created
 - [ ] Atlas **Network Access** set to `0.0.0.0/0`
 - [ ] Atlas database user created, connection string saved
-- [ ] Clerk app created, publishable + secret keys saved
+- [ ] JWT secret keys (access + refresh) generated and saved
 - [ ] Upstash Redis database created, URL + token saved
 - [ ] (Stretch) Gemini or Claude API key saved
 
@@ -27,8 +27,8 @@ A step-by-step checklist. Work top to bottom. Tick each box when done.
 - [ ] Create `.env` in both folders (never commit these)
 
 ### Install packages
-- [ ] Frontend: `react-router-dom @mantine/core @mantine/hooks @mantine/charts @mantine/notifications @mantine/dropzone @xyflow/react zustand zod @clerk/clerk-react`
-- [ ] Backend: `express mongoose cors zod @clerk/express @vercel/blob @upstash/redis @upstash/ratelimit dotenv`
+- [ ] Frontend: `react-router-dom @mantine/core @mantine/hooks @mantine/charts @mantine/notifications @mantine/dropzone @xyflow/react zustand zod`
+- [ ] Backend: `express mongoose cors zod jsonwebtoken bcryptjs @vercel/blob @upstash/redis @upstash/ratelimit dotenv`
 
 ### Deploy "hello world" early
 - [ ] Backend: `api/index.js` exports Express app with a `GET /api/v1/health` route
@@ -79,7 +79,7 @@ Build in `/frontend/src/engine`. Pure JavaScript, **no React**.
 ### Core setup
 - [ ] `config/db.js` — cached Mongoose connection
 - [ ] `app.js` — Express, JSON parser, CORS (frontend URL only), error handler
-- [ ] `middleware/requireAuth.js` — verify Clerk token
+- [ ] `middleware/requireAuth.js` — verify JWT access token
 - [ ] `middleware/ownsExperiment.js` — researcher can only touch their own data
 - [ ] `middleware/rateLimit.js` — Upstash limiter on public routes
 - [ ] `middleware/validate.js` — Zod body validation
@@ -108,9 +108,14 @@ Build in `/frontend/src/engine`. Pure JavaScript, **no React**.
 
 ## Phase 3 — Researcher Auth + Experiments
 
-- [ ] Clerk `<SignIn />` / `<SignUp />` pages
+- [ ] Sign in / sign up pages (custom auth forms)
 - [ ] Protected routes for dashboard and builder
-- [ ] `api/client.js` attaches Clerk token to every request
+- [ ] `api/client.js` attaches JWT access token to every request
+- [ ] `POST /api/v1/auth/register`
+- [ ] `POST /api/v1/auth/login`
+- [ ] `POST /api/v1/auth/refresh`
+- [ ] `POST /api/v1/auth/logout`
+- [ ] `GET /api/v1/auth/me`
 - [ ] `GET /api/v1/experiments`
 - [ ] `POST /api/v1/experiments`
 - [ ] `GET /api/v1/experiments/:id`

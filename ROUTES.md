@@ -4,7 +4,7 @@ All routes live under `/api/v1`. Base URL: your backend Vercel URL.
 
 **Auth legend**
 - 🌐 **Public** — no login, rate-limited (Upstash)
-- 🔒 **Auth** — needs Clerk token (`Authorization: Bearer <token>`)
+- 🔒 **Auth** — needs JWT access token (`Authorization: Bearer <token>`)
 - 👤 **Owner** — Auth + researcher must own the experiment
 
 ---
@@ -17,13 +17,25 @@ All routes live under `/api/v1`. Base URL: your backend Vercel URL.
 
 ---
 
+## Auth
+
+| Method | Route | Auth | What it does |
+|---|---|---|---|
+| POST | `/api/v1/auth/register` | 🌐 | Create a researcher account |
+| POST | `/api/v1/auth/login` | 🌐 | Log in → access + refresh tokens |
+| POST | `/api/v1/auth/refresh` | 🌐 | Swap refresh token for new token pair |
+| POST | `/api/v1/auth/logout` | 🔒 | Invalidate refresh token |
+| GET | `/api/v1/auth/me` | 🔒 | Get current user profile |
+
+---
+
 ## Participant (runtime)
 
 | Method | Route | Auth | What it does |
 |---|---|---|---|
 | GET | `/api/v1/run/:slug` | 🌐 | Get the published experiment JSON |
 | POST | `/api/v1/run/:slug/sessions` | 🌐 | Start a session → returns `sessionId` + `withdrawCode` |
-| PATCH | `/api/v1/run/sessions/:sessionId` | 🌐 | Update session (device info, calibration score, status) |
+| PATCH | `/api/v1/run/sessions/:sessionId` | 🌐 | Update session (calibration, mark abandoned) |
 | POST | `/api/v1/run/sessions/:sessionId/trials` | 🌐 | Upload a batch of trials |
 | POST | `/api/v1/run/sessions/:sessionId/complete` | 🌐 | Mark session as finished |
 | POST | `/api/v1/run/sessions/:sessionId/beacon` | 🌐 | Last-chance save on tab close (`text/plain` body) |
@@ -66,4 +78,4 @@ All routes live under `/api/v1`. Base URL: your backend Vercel URL.
 | PATCH | `/api/v1/results/:experimentId/sessions/:sessionId` | 👤 | Exclude / include a session |
 | GET | `/api/v1/results/:experimentId/export?format=csv\|json` | 👤 | Download all data |
 
-**Total: 25 routes**
+**Total: 29 routes**
