@@ -31,13 +31,13 @@ A step-by-step checklist. Work top to bottom. Tick each box when done.
 - [ ] Backend: `express mongoose cors zod @clerk/express @vercel/blob @upstash/redis @upstash/ratelimit dotenv`
 
 ### Deploy "hello world" early
-- [ ] Backend: `api/index.js` exports Express app with a `GET /api/health` route
+- [ ] Backend: `api/index.js` exports Express app with a `GET /api/v1/health` route
 - [ ] Backend: `vercel.json` routes `/api/(.*)` → `api/index.js`
 - [ ] Deploy backend as Vercel project (root directory = `backend`)
 - [ ] Deploy frontend as Vercel project (root directory = `frontend`)
 - [ ] Frontend `vercel.json` rewrite added so page refresh doesn't 404
 - [ ] Env vars added in both Vercel project settings
-- [ ] Frontend calls `/api/health` successfully (CORS works)
+- [ ] Frontend calls `/api/v1/health` successfully (CORS works)
 
 ---
 
@@ -92,13 +92,13 @@ Build in `/frontend/src/engine`. Pure JavaScript, **no React**.
 - [ ] Indexes on `sessionId`, `experimentId`, `slug`
 
 ### Participant routes (public)
-- [ ] `GET /api/run/:slug`
-- [ ] `POST /api/run/:slug/sessions`
-- [ ] `PATCH /api/run/sessions/:sessionId`
-- [ ] `POST /api/run/sessions/:sessionId/trials`
-- [ ] `POST /api/run/sessions/:sessionId/complete`
-- [ ] `POST /api/run/sessions/:sessionId/beacon` (accepts `text/plain`)
-- [ ] `DELETE /api/run/withdraw/:withdrawCode`
+- [ ] `GET /api/v1/run/:slug`
+- [ ] `POST /api/v1/run/:slug/sessions`
+- [ ] `PATCH /api/v1/run/sessions/:sessionId`
+- [ ] `POST /api/v1/run/sessions/:sessionId/trials`
+- [ ] `POST /api/v1/run/sessions/:sessionId/complete`
+- [ ] `POST /api/v1/run/sessions/:sessionId/beacon` (accepts `text/plain`)
+- [ ] `DELETE /api/v1/run/withdraw/:withdrawCode`
 
 ### Connect engine to backend
 - [ ] Runtime fetches experiment by slug instead of hardcoded JSON
@@ -111,14 +111,13 @@ Build in `/frontend/src/engine`. Pure JavaScript, **no React**.
 - [ ] Clerk `<SignIn />` / `<SignUp />` pages
 - [ ] Protected routes for dashboard and builder
 - [ ] `api/client.js` attaches Clerk token to every request
-- [ ] `GET /api/experiments`
-- [ ] `POST /api/experiments`
-- [ ] `GET /api/experiments/:id`
-- [ ] `PUT /api/experiments/:id`
-- [ ] `DELETE /api/experiments/:id`
-- [ ] `POST /api/experiments/:id/duplicate`
-- [ ] `POST /api/experiments/:id/publish` (freeze version, random slug)
-- [ ] `POST /api/experiments/:id/close`
+- [ ] `GET /api/v1/experiments`
+- [ ] `POST /api/v1/experiments`
+- [ ] `GET /api/v1/experiments/:id`
+- [ ] `PUT /api/v1/experiments/:id`
+- [ ] `DELETE /api/v1/experiments/:id`
+- [ ] `POST /api/v1/experiments/:id/duplicate`
+- [ ] `POST /api/v1/experiments/:id/publish` (freeze version, random slug)
 - [ ] Dashboard page lists experiments with create / open / delete
 
 ---
@@ -141,7 +140,7 @@ Build in `/frontend/src/engine`. Pure JavaScript, **no React**.
 - [ ] Branch rules — e.g. "if wrong → show feedback"
 
 ### Stimuli
-- [ ] `POST /api/stimuli/upload-url`, `POST /api/stimuli`, `GET /api/stimuli`, `DELETE /api/stimuli/:id`
+- [ ] `POST /api/v1/stimuli/upload-url`, `POST /api/v1/stimuli`, `GET /api/v1/stimuli`, `DELETE /api/v1/stimuli/:id`
 - [ ] Upload dropzone (browser uploads straight to Vercel Blob)
 - [ ] Stimulus picker inside the node inspector
 
@@ -156,11 +155,11 @@ Build in `/frontend/src/engine`. Pure JavaScript, **no React**.
 
 ## Phase 5 — Results Dashboard
 
-- [ ] `GET /api/results/:experimentId/summary`
-- [ ] `GET /api/results/:experimentId/sessions`
-- [ ] `GET /api/results/:experimentId/sessions/:sessionId`
-- [ ] `PATCH /api/results/:experimentId/sessions/:sessionId` (exclude)
-- [ ] `GET /api/results/:experimentId/export?format=csv|json`
+- [ ] `GET /api/v1/results/:experimentId/summary`
+- [ ] `GET /api/v1/results/:experimentId/sessions`
+- [ ] `GET /api/v1/results/:experimentId/sessions/:sessionId`
+- [ ] `PATCH /api/v1/results/:experimentId/sessions/:sessionId` (exclude)
+- [ ] `GET /api/v1/results/:experimentId/export?format=csv|json`
 - [ ] Summary cards — participants, completion rate, mean RT, accuracy
 - [ ] RT by condition chart (Mantine charts)
 - [ ] Participant table with timing quality score + exclude toggle
@@ -184,7 +183,6 @@ Build in `/frontend/src/engine`. Pure JavaScript, **no React**.
 ## Phase 7 — Stretch Goals (only if time allows)
 
 - [ ] Bot detection score — mouse movement, impossible RTs, tab switching
-- [ ] AI builder — `POST /api/ai/generate-experiment` (describe it → get a draft flow)
 - [ ] Participant simulator — run fake participants to test branches
 - [ ] Template library — ready-made Stroop, Flanker, N-back tasks
 - [ ] Auto-generated consent / IRB summary
