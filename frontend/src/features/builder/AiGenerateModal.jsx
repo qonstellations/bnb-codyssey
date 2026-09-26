@@ -1,69 +1,46 @@
 import { useState } from "react";
 import { Alert, Button, Group, List, Modal, Stack, Text, Textarea } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import { useBuilderStore } from "./store.js";
 import { validateExperiment } from "../../shared/experimentSchema.js";
 import { TEMPLATES, composeFromTemplates } from "../../shared/templates/index.js";
 import { generateExperiment } from "../../api/ai.js";
-import { openConfirmModal } from "../../components/ConfirmModal.jsx";
 
 const MAX_CHARS = 2000;
 const MIN_CHARS = 10;
 
-function applyRecipe(recipe, title, notes, loadFromJson, onTitleChange) {
-  const { ok, errors, data } = validateExperiment(composeFromTemplates(recipe));
-  if (!ok) return errors.map((message) => ({ message }));
-  loadFromJson(data, { dirty: true });
-  if (title) onTitleChange(title);
-  notifications.show({
-    title: "Experiment generated — review it on the canvas",
-    message: notes?.length ? notes.map((n) => `• ${n}`).join("\n") : "Save to keep it.",
-    autoClose: notes?.length ? 12000 : 4000,
-    style: { whiteSpace: "pre-line" },
-  });
-  return null;
-}
-
-export default function AiGenerateModal({ opened, onClose, onTitleChange }) {
+// Lives on the Dashboard: always builds a *fresh* experiment from a text description, so it
+// has no canvas to protect and no dirty-check. `onGenerated` does the creating/navigating;
+// if it throws, the error lands in the list below and the modal stays open.
+export default function AiGenerateModal({ opened, onClose, onGenerated }) {
   const [description, setDescription] = useState("");
   const [exampleIndex, setExampleIndex] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [errors, setErrors] = useState([]);
-  const isDirty = useBuilderStore((s) => s.isDirty);
-  const loadFromJson = useBuilderStore((s) => s.loadFromJson);
 
   const prompt = description.trim();
   const canGenerate = prompt.length >= MIN_CHARS && description.length <= MAX_CHARS && !generating;
 
-  async function run() {
+  async function generate() {
     setGenerating(true);
     setErrors([]);
     try {
       const result = await generateExperiment({ prompt });
-      const problems = result.valid
-        ? applyRecipe(result.recipe, result.title, result.notes, loadFromJson, onTitleChange)
-        : result.errors.map((message) => ({ message }));
-      if (problems) {
-        setErrors(problems);
-      } else {
-        setDescription("");
-        onClose();
+      if (!result.valid) {
+        setErrors(result.errors.map((message) => ({ message })));
+        return;
       }
+      const { ok, errors: composeErrors, data } = validateExperiment(composeFromTemplates(result.recipe));
+      if (!ok) {
+        setErrors(composeErrors.map((message) => ({ message })));
+        return;
+      }
+      await onGenerated(data, result.title, result.notes);
+      setDescription("");
+      onClose();
     } catch (err) {
       setErrors([{ message: err.message ?? "Generation failed" }]);
     } finally {
       setGenerating(false);
     }
-  }
-
-  function generate() {
-    if (!isDirty) return run();
-    openConfirmModal({
-      title: "Replace current canvas?",
-      message: "The generated experiment will replace your unsaved work.",
-      confirmLabel: "Replace",
-      onConfirm: run,
-    });
   }
 
   // Each click pastes the next of the 6 library tests.

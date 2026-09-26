@@ -5,7 +5,9 @@
 const SPACE = ' '
 const CONSENT =
   'You are invited to take part in a short research study. Your responses are anonymous and used for research only. Participation is voluntary and you may stop at any time by closing this page.'
-const PRACTICE_FEEDBACK = { correct: 'Correct!', incorrect: 'Incorrect' }
+// Shown after every trial: engine/index.js turns this into "Correct!" / "Incorrect" /
+// "Too early" (pressed during fixation) / "Too late" (no response in time).
+const FEEDBACK = { correct: 'Correct!', incorrect: 'Incorrect' }
 
 function settings(instructionsText, extra = {}) {
   return {
@@ -21,8 +23,9 @@ function settings(instructionsText, extra = {}) {
 }
 
 // specs: [{ content, condition, correctKey, color? }] repeated `reps` times; `common`
-// holds shared timing/keys; practice blocks get feedback.
-function makeTrials(prefix, specs, reps, common, { feedback = false } = {}) {
+// holds shared timing/keys. feedback defaults on — every block shows correct/incorrect/
+// too-early/too-late after each trial, matching the 20 s-budget number checked below.
+function makeTrials(prefix, specs, reps, common, { feedback = true } = {}) {
   const out = []
   for (let r = 0; r < reps; r++) {
     for (const s of specs) {
@@ -35,7 +38,7 @@ function makeTrials(prefix, specs, reps, common, { feedback = false } = {}) {
         ...(s.extra ?? {}),
         condition: s.condition,
         correctKey: s.correctKey,
-        ...(feedback && { feedback: PRACTICE_FEEDBACK }),
+        ...(feedback && { feedback: FEEDBACK }),
       })
     }
   }
@@ -86,7 +89,7 @@ const choiceCommon = { duration: 1500, validKeys: ['f', 'j'] }
 const choiceRt = {
   settings: settings('An arrow will appear. Press F for ← (left) and J for → (right) as quickly and accurately as you can.'),
   blocks: [
-    block('practice', 'Practice', makeTrials('practice', choiceSpecs, 1, choiceCommon, { feedback: true })),
+    block('practice', 'Practice', makeTrials('practice', choiceSpecs, 1, choiceCommon)),
     block('main', 'Main', makeTrials('main', choiceSpecs, 2, choiceCommon)),
   ],
   branches: [retryPractice('practice')],
@@ -109,7 +112,9 @@ const stroopIncongruent = COLOURS.flatMap((w) =>
     correctKey: ink.key,
   }))
 )
-const stroopCommon = { duration: 2000, validKeys: ['r', 'g', 'b', 'y'] }
+// Trimmed a bit from the classic 2s window — 6 trials all now carry 600ms of feedback,
+// and stroop needs to stay under the 20s default-run budget.
+const stroopCommon = { duration: 1700, fixationDuration: 400, itiMs: 300, validKeys: ['r', 'g', 'b', 'y'] }
 const stroop = {
   settings: settings(
     'Respond to the INK COLOUR of each word, not the word itself. R = red, G = green, B = blue, Y = yellow.',
@@ -119,7 +124,7 @@ const stroop = {
     block(
       'practice',
       'Practice',
-      makeTrials('practice', [stroopCongruent[0], stroopIncongruent[4]], 1, stroopCommon, { feedback: true })
+      makeTrials('practice', [stroopCongruent[0], stroopIncongruent[4]], 1, stroopCommon)
     ),
     // 2 congruent + 2 incongruent = balanced 50/50.
     block('main', 'Main', makeTrials('main', [stroopCongruent[1], stroopCongruent[2], stroopIncongruent[0], stroopIncongruent[8]], 1, stroopCommon)),
@@ -136,11 +141,13 @@ const goSpecs = [
   { content: 'O', condition: 'go', correctKey: SPACE },
   { content: 'X', condition: 'nogo', correctKey: null, extra: { withhold: true } },
 ]
-const goCommon = { duration: 800, validKeys: [SPACE] }
+// Shorter fixation/duration/ITI than the other templates — 10 trials all now carry
+// 600ms of feedback, and go-nogo needs to stay under the 20s default-run budget.
+const goCommon = { duration: 700, fixationDuration: 350, itiMs: 250, validKeys: [SPACE] }
 const goNoGo = {
   settings: settings('Press SPACE as fast as you can when you see O. Do NOT press anything when you see X.', { fontSize: 72 }),
   blocks: [
-    block('practice', 'Practice', makeTrials('practice', goSpecs.slice(2), 1, goCommon, { feedback: true })),
+    block('practice', 'Practice', makeTrials('practice', goSpecs.slice(2), 1, goCommon)),
     block('main', 'Main', makeTrials('main', goSpecs, 2, goCommon), { maxRepeats: 6 }),
   ],
   branches: [retryPractice('practice')],
@@ -175,7 +182,7 @@ const twoBack = {
     fontSize: 64,
   }),
   blocks: [
-    block('main', 'Main', makeTrials('main', nBackStream(7, new Set([3, 5])), 1, nBackCommon, { feedback: true }), {
+    block('main', 'Main', makeTrials('main', nBackStream(7, new Set([3, 5])), 1, nBackCommon), {
       shuffle: false,
     }),
   ],
@@ -187,14 +194,16 @@ const twoBack = {
 const DIGITS = [1, 2, 3, 4, 6, 7, 8, 9]
 const parity = DIGITS.map((d) => ({ content: `ODD  or  EVEN?\n\n${d}`, condition: 'parity', correctKey: d % 2 ? 'f' : 'j' }))
 const magnitude = DIGITS.map((d) => ({ content: `LOW  or  HIGH?\n\n${d}`, condition: 'magnitude', correctKey: d < 5 ? 'f' : 'j' }))
-const switchCommon = { duration: 2000, validKeys: ['f', 'j'] }
+// Trimmed a bit — 6 trials all now carry 600ms of feedback, and task-switch needs to
+// stay under the 20s default-run budget.
+const switchCommon = { duration: 1700, fixationDuration: 400, itiMs: 300, validKeys: ['f', 'j'] }
 const taskSwitch = {
   settings: settings(
     'A question and a digit appear. ODD/EVEN: F = odd, J = even. LOW/HIGH: F = lower than 5, J = higher than 5.',
     { fontSize: 44 }
   ),
   blocks: [
-    block('practice', 'Practice', makeTrials('practice', [parity[0], magnitude[5]], 1, switchCommon, { feedback: true })),
+    block('practice', 'Practice', makeTrials('practice', [parity[0], magnitude[5]], 1, switchCommon)),
     // Mixed: shuffled so switch and repeat trials both occur; code them from trial order at analysis.
     block('mixed', 'Mixed', makeTrials('mixed', [parity[3], parity[6], magnitude[1], magnitude[7]], 1, switchCommon)),
   ],

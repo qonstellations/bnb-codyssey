@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ReactFlow } from '@xyflow/react'
-import { Button, Group, Modal, Slider, Text } from '@mantine/core'
+import { Button, Group, Modal, Slider, Text, useComputedColorScheme } from '@mantine/core'
 import { nodeTypes } from './nodes/index.js'
 import { compileToGraph } from './compile.js'
 import { conditionText } from './format.js'
@@ -49,6 +49,7 @@ function participantPath(accuracy) {
 
 function PathChapter() {
   const base = useMemo(() => compileToGraph(DEMO_DRAFT), [])
+  const colorScheme = useComputedColorScheme('light')
   const [accuracy, setAccuracy] = useState(0.55)
   const [step, setStep] = useState(-1)
   const timer = useRef(null)
@@ -91,7 +92,7 @@ function PathChapter() {
           zoomOnPinch={false}
           zoomOnDoubleClick={false}
           preventScrolling={false}
-          colorMode="light"
+          colorMode={colorScheme}
         />
       </div>
       <div className="hiw-controls">
