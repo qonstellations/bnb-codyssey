@@ -9,6 +9,16 @@ function stamp(event) {
   return t > 1e12 && performance.timeOrigin ? t - performance.timeOrigin : t
 }
 
+// Physical key → validKeys spelling. event.code survives non-Latin layouts and CapsLock
+// (KeyF → 'f', Digit3 → '3', Space → ' '); event.key is the fallback for everything else.
+export function keyCandidates({ key = '', code = '' }) {
+  const out = [key.toLowerCase()]
+  if (code === 'Space') out.push(' ')
+  else if (/^Key[A-Z]$/.test(code)) out.push(code.slice(3).toLowerCase())
+  else if (/^(Digit|Numpad)\d$/.test(code)) out.push(code.slice(-1))
+  return out
+}
+
 export function waitForResponse(validKeys, timeoutMs) {
   return new Promise((resolve) => {
     let done = false
@@ -24,16 +34,21 @@ export function waitForResponse(validKeys, timeoutMs) {
     }
 
     function onKeyDown(event) {
+      const key = keyCandidates(event).find((k) => normalizedKeys.includes(k))
+      if (key === undefined) return
+      event.preventDefault() // Space must not scroll or press a focused button
       if (event.repeat) return
-      const key = event.key.toLowerCase()
-      if (!normalizedKeys.includes(key)) return
       finish({ key, time: stamp(event) })
     }
 
-    // Pointer response only counts when validKeys includes a synthetic 'click' key.
+    // Touch response pad buttons carry data-key; a bare pointer press only counts
+    // when validKeys includes the synthetic 'click' key.
     function onPointerDown(event) {
-      if (!normalizedKeys.includes('click')) return
-      finish({ key: 'click', time: stamp(event) })
+      const padKey = event.target.closest?.('[data-key]')?.dataset.key
+      const key = padKey ?? 'click'
+      if (!normalizedKeys.includes(key)) return
+      event.preventDefault()
+      finish({ key, time: stamp(event) })
     }
 
     window.addEventListener('keydown', onKeyDown)
