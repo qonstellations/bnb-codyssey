@@ -6,124 +6,15 @@ A detailed checklist for everything inside `/frontend`. Work top to bottom and t
 
 **Golden rule:** During a trial, the participant's browser makes **zero network calls**. Load everything first, run offline, upload after.
 
-> ⚠️ **AUTH REMINDER — Clerk is NOT used.**
-> Authentication is **your task**. Everywhere this plan shows 🔐, you need to plug in your own auth.
-> The rest of the frontend only needs a small auth interface (see Phase 2), so you can build auth
-> in parallel without blocking anyone.
+**API base URL:** `VITE_API_URL` + `/api/v1` (e.g. `http://localhost:3000/api/v1`). Every endpoint below is relative to that. Full spec in `../API.md`, route list in `ROUTES.md`.
 
---
-## Phase 0 — Project Setup
-
-### Create the app
-- [ ] `npm create vite@latest frontend` → React → JavaScript
-- [ ] `cd frontend && npm install`
-- [ ] Delete Vite demo files (`App.css`, logo, counter code)
-
-### Install packages
-- [ ] `npm i react-router-dom zustand zod @xyflow/react`
-- [ ] `npm i @mantine/core @mantine/hooks @mantine/notifications @mantine/charts @mantine/dropzone @mantine/modals recharts`
-- [ ] `npm i -D postcss postcss-preset-mantine postcss-simple-vars`
-- [ ] Add `postcss.config.cjs` as per Mantine docs
-
-### Environment
-- [ ] Create `.env` with `VITE_API_URL=http://localhost:3000`
-- [ ] Add `.env` to `.gitignore`
-- [ ] Create `src/shared/config.js` that exports `API_URL = import.meta.env.VITE_API_URL`
-
-### Two entry pages
-- [ ] Keep `index.html` → loads `src/main.jsx` (researcher app)
-- [ ] Create `run.html` → loads `src/runtime/main.js` (participant app)
-- [ ] Update `vite.config.js`:
-
-```js
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import { resolve } from "path";
-
-export default defineConfig({
-  plugins: [react()],
-  build: {
-    rollupOptions: {
-      input: {
-        main: resolve(__dirname, "index.html"),
-        run: resolve(__dirname, "run.html"),
-      },
-    },
-  },
-});
-```
-
-### Vercel config
-- [ ] Create `vercel.json` so `/run/*` goes to the participant page and everything else to the researcher app:
-
-```json
-{
-  "rewrites": [
-    { "source": "/run/(.*)", "destination": "/run.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
-}
-```
-
-- [ ] Deploy to Vercel (root directory = `frontend`), add `VITE_API_URL` in project settings
-- [ ] Confirm both `/` and `/run/test` load after a page refresh
+> ⚠️ **AUTH — real backend routes, not Clerk.**
+> The backend exposes its own auth routes (`/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/me`) — see Phase 2.
+> Everywhere below marked 🔐, wire these in; nothing here depends on a third-party auth provider.
 
 ---
 
-## Phase 1 — Folder Structure
-
-- [ ] Create this structure (empty files are fine for now):
-
-```
-/frontend
-├── index.html
-├── run.html
-├── vite.config.js
-├── vercel.json
-└── src
-    ├── main.jsx
-    ├── App.jsx
-    ├── /api
-    │   ├── client.js
-    │   ├── experiments.js
-    │   ├── stimuli.js
-    │   ├── results.js
-    │   └── run.js
-    ├── /auth                     🔐 YOU BUILD THIS
-    │   ├── AuthContext.jsx
-    │   ├── ProtectedRoute.jsx
-    │   ├── LoginPage.jsx
-    │   └── SignupPage.jsx
-    ├── /pages
-    │   ├── Landing.jsx
-    │   ├── Dashboard.jsx
-    │   ├── BuilderPage.jsx
-    │   ├── ResultsPage.jsx
-    │   ├── SettingsPage.jsx
-    │   └── NotFound.jsx
-    ├── /features
-    │   ├── /builder
-    │   │   ├── Canvas.jsx
-    │   │   ├── Toolbar.jsx
-    │   │   ├── store.js
-    │   │   ├── compile.js
-    │   │   ├── /nodes
-    │   │   └── /panels
-    │   ├── /results
-    │   └── /stimuli
-    ├── /components
-    ├── /hooks
-    ├── /shared
-    │   ├── config.js
-    │   ├── constants.js
-    │   └── experimentSchema.js
-    ├── /engine
-    └── /runtime
-```
-
----
-
-## Phase 2 — App Shell, Routing & Auth Hooks
+## Phase 2 — App Shell, Routing & Auth
 
 ### Mantine setup
 - [ ] In `main.jsx`: import `@mantine/core/styles.css`, `@mantine/notifications/styles.css`, `@mantine/charts/styles.css`, `@mantine/dropzone/styles.css`
@@ -146,8 +37,17 @@ export default defineConfig({
 - [ ] Set up all routes with React Router
 - [ ] Wrap protected routes in `<ProtectedRoute>`
 
-### 🔐 Auth — YOUR TASK
-Build these however you like (e.g. JWT + bcrypt on the backend). The rest of the frontend only depends on this interface:
+### 🔐 Auth — real endpoints
+
+```
+POST  /auth/register   { name, email, password }  → { user, token }
+POST  /auth/login      { email, password }         → { user, token }
+POST  /auth/refresh    (uses refresh cookie/token)  → { token }
+POST  /auth/logout
+GET   /auth/me                                       → { user }
+```
+
+The rest of the frontend only depends on this interface:
 
 ```js
 // src/auth/AuthContext.jsx must provide:
@@ -157,15 +57,14 @@ const { user, token, isLoading, login, signup, logout } = useAuth();
 // login(email, password), signup(name, email, password), logout()
 ```
 
-- [ ] 🔐 `AuthContext.jsx` — holds user + token, exposes `useAuth()`
-- [ ] 🔐 Decide where the token lives (memory + httpOnly cookie is safest; localStorage is simplest)
-- [ ] 🔐 Restore the logged-in user on page refresh
+- [ ] 🔐 `AuthContext.jsx` — on mount, call `GET /auth/me` to restore session (holds user + token, exposes `useAuth()`)
+- [ ] 🔐 Decide where the token lives (memory + httpOnly refresh cookie is safest; localStorage is simplest)
+- [ ] 🔐 `login`/`signup` call `/auth/login` / `/auth/register`, store returned token
+- [ ] 🔐 `logout` calls `POST /auth/logout`, clears local state
 - [ ] 🔐 `LoginPage.jsx` and `SignupPage.jsx` using Mantine forms
 - [ ] 🔐 `ProtectedRoute.jsx` — redirects to `/login` if no user, shows loader while `isLoading`
 - [ ] 🔐 Logout button in the navbar
-- [ ] 🔐 On any `401` from the API → log out and redirect to `/login`
-
-> 💡 **Until auth is ready:** make `useAuth()` return a fake user and fake token so teammates can keep building.
+- [ ] 🔐 On any `401` from the API → try `POST /auth/refresh` once, else log out and redirect to `/login`
 
 ### Layout
 - [ ] `components/AppLayout.jsx` — Mantine `AppShell` with navbar (logo, Dashboard link, user menu)
@@ -180,46 +79,51 @@ const { user, token, isLoading, login, signup, logout } = useAuth();
 
 ### Base client (`api/client.js`)
 - [ ] One `request(method, path, body)` function that:
-  - [ ] Adds `API_URL` in front of the path
+  - [ ] Prefixes `API_URL + "/api/v1"` in front of the path
   - [ ] Adds `Content-Type: application/json`
   - [ ] 🔐 Adds `Authorization: Bearer <token>` from your auth
-  - [ ] Parses JSON response
-  - [ ] Throws a readable error on non-2xx
-  - [ ] 🔐 Calls `logout()` on `401`
+  - [ ] Parses JSON response; on error, reads `error.code`/`error.message` from the envelope and throws a readable error
+  - [ ] 🔐 On `401` → attempt refresh once, else `logout()`
 
 ### Endpoint files
 
+**`api/auth.js`**
+- [ ] `register(name, email, password)` → `POST /auth/register`
+- [ ] `login(email, password)` → `POST /auth/login`
+- [ ] `refresh()` → `POST /auth/refresh`
+- [ ] `logout()` → `POST /auth/logout`
+- [ ] `getMe()` → `GET /auth/me`
+
 **`api/experiments.js`**
-- [ ] `listExperiments()` → `GET /api/experiments`
-- [ ] `createExperiment(data)` → `POST /api/experiments`
-- [ ] `getExperiment(id)` → `GET /api/experiments/:id`
-- [ ] `updateExperiment(id, data)` → `PUT /api/experiments/:id`
-- [ ] `deleteExperiment(id)` → `DELETE /api/experiments/:id`
-- [ ] `duplicateExperiment(id)` → `POST /api/experiments/:id/duplicate`
-- [ ] `publishExperiment(id)` → `POST /api/experiments/:id/publish`
-- [ ] `closeExperiment(id)` → `POST /api/experiments/:id/close`
+- [ ] `listExperiments()` → `GET /experiments`
+- [ ] `createExperiment(data)` → `POST /experiments`
+- [ ] `getExperiment(id)` → `GET /experiments/:id`
+- [ ] `updateExperiment(id, data)` → `PUT /experiments/:id` (partial update: `title`, `draft`, `status`; use `{ status: "closed" }` to close — there is no separate close endpoint)
+- [ ] `deleteExperiment(id)` → `DELETE /experiments/:id`
+- [ ] `duplicateExperiment(id)` → `POST /experiments/:id/duplicate`
+- [ ] `publishExperiment(id)` → `POST /experiments/:id/publish` → returns `{ version, slug, participantUrl }`
 
 **`api/stimuli.js`**
-- [ ] `listStimuli()` → `GET /api/stimuli`
-- [ ] `getUploadUrl(file)` → `POST /api/stimuli/upload-url`
-- [ ] `saveStimulus(meta)` → `POST /api/stimuli`
-- [ ] `deleteStimulus(id)` → `DELETE /api/stimuli/:id`
+- [ ] `listStimuli()` → `GET /stimuli`
+- [ ] `getUploadUrl(filename, contentType)` → `POST /stimuli/upload-url` → `{ uploadUrl, token }`
+- [ ] `saveStimulus({ name, type, url, size })` → `POST /stimuli`
+- [ ] `deleteStimulus(id)` → `DELETE /stimuli/:id`
 
 **`api/results.js`**
-- [ ] `getSummary(expId)` → `GET /api/results/:expId/summary`
-- [ ] `getSessions(expId)` → `GET /api/results/:expId/sessions`
-- [ ] `getSession(expId, sessionId)` → `GET /api/results/:expId/sessions/:sessionId`
-- [ ] `setExcluded(expId, sessionId, excluded)` → `PATCH /api/results/:expId/sessions/:sessionId`
-- [ ] `exportUrl(expId, format)` → builds `/api/results/:expId/export?format=csv|json`
+- [ ] `getSummary(expId)` → `GET /results/:expId/summary`
+- [ ] `getSessions(expId)` → `GET /results/:expId/sessions`
+- [ ] `getSession(expId, sessionId)` → `GET /results/:expId/sessions/:sessionId`
+- [ ] `setExcluded(expId, sessionId, excluded)` → `PATCH /results/:expId/sessions/:sessionId`
+- [ ] `exportUrl(expId, format)` → builds `/results/:expId/export?format=csv|json`
 
 **`api/run.js`** (participant, no auth, no Mantine — keep it tiny)
-- [ ] `loadExperiment(slug)` → `GET /api/run/:slug`
-- [ ] `startSession(slug, device)` → `POST /api/run/:slug/sessions`
-- [ ] `updateSession(sessionId, data)` → `PATCH /api/run/sessions/:sessionId`
-- [ ] `uploadTrials(sessionId, trials)` → `POST /api/run/sessions/:sessionId/trials`
-- [ ] `completeSession(sessionId)` → `POST /api/run/sessions/:sessionId/complete`
-- [ ] `beacon(sessionId, trials)` → `navigator.sendBeacon(.../beacon, JSON string)`
-- [ ] `withdraw(code)` → `DELETE /api/run/withdraw/:code`
+- [ ] `loadExperiment(slug)` → `GET /run/:slug` (404 if missing, 410 if closed)
+- [ ] `startSession(slug, deviceInfo)` → `POST /run/:slug/sessions` → `{ sessionId, withdrawCode }`
+- [ ] `updateSession(sessionId, { calibration?, status? })` → `PATCH /run/sessions/:sessionId`
+- [ ] `uploadTrials(sessionId, trials)` → `POST /run/sessions/:sessionId/trials` (max 500 per batch)
+- [ ] `completeSession(sessionId)` → `POST /run/sessions/:sessionId/complete` → `{ withdrawCode }`
+- [ ] `beacon(sessionId, { trials, status })` → `navigator.sendBeacon(.../beacon, JSON string)` (Content-Type `text/plain`)
+- [ ] `withdraw(withdrawCode)` → `DELETE /run/withdraw/:withdrawCode`
 
 ### Shared hooks
 - [ ] `hooks/useApi.js` — runs a request, returns `{ data, error, loading, reload }`
@@ -229,54 +133,9 @@ const { user, token, isLoading, login, signup, logout } = useAuth();
 
 ## Phase 4 — Experiment JSON Schema
 
-This is the **contract** between the builder, the engine and the backend. Agree on it as a team early.
+This is the **contract** between the builder, the engine and the backend (`draft` field on the Experiment model). Agree on it as a team early — schema must match what `PUT /experiments/:id` and `GET /run/:slug` expect.
 
-- [ ] Write `shared/experimentSchema.js` with Zod
-- [ ] Share a copy with the backend teammate
-
-**Suggested shape:**
-
-```js
-{
-  version: 1,
-  settings: {
-    fullscreen: true,
-    backgroundColor: "#808080",
-    textColor: "#ffffff",
-    fontSize: 48,
-    consentText: "...",
-    instructions: "...",
-  },
-  stimuli: [{ id, type: "image" | "audio", url }],
-  blocks: [
-    {
-      id, name,
-      randomize: true,
-      maxRepeats: 3,
-      repetitions: 1,
-      trials: [
-        {
-          id,
-          fixationMs: 500,
-          stimulus: { type: "text" | "image" | "audio", value, color },
-          durationMs: 2000,          // how long stimulus stays on screen (null = until response)
-          responseKeys: ["f", "j"],
-          correctKey: "f",
-          timeoutMs: 3000,
-          feedback: true,
-          itiMs: 500,                // gap before next trial
-          condition: "congruent",    // label used in results
-        },
-      ],
-    },
-  ],
-  flow: [
-    { from: "blockA", to: "blockB" },
-    { from: "blockB", to: "blockC", if: { metric: "accuracy", op: "<", value: 0.7 } },
-  ],
-}
-```
-
+- [ ] Write `shared/experimentSchema.js` with Zod, matching the `snapshot`/`draft` shape in `../API.md` (`settings`, `blocks[].trials[]`, `branches`, `loops`)
 - [ ] Write `validateExperiment(json)` that returns `{ ok, errors }` with human-readable messages
 - [ ] Create `shared/sampleStroop.js` — a full valid example (used for testing everywhere)
 
@@ -295,8 +154,8 @@ Pure JavaScript. **No React, no Mantine, no network calls during trials.**
 ### 5.2 Calibration (`calibration.js`)
 - [ ] Run ~120 frames of `requestAnimationFrame` and record time between frames
 - [ ] Calculate refresh rate (Hz), mean frame time, jitter (standard deviation), dropped frames
-- [ ] Produce a **timing quality score** 0–100
-- [ ] Return device info: screen size, pixel ratio, user agent, touch support
+- [ ] Produce a **timing quality score** 0–100 (maps to `calibration.score` sent via `updateSession`)
+- [ ] Return device info matching `deviceInfo` shape: `browser`, `os`, `screenW`, `screenH`, `pixelRatio`
 
 ### 5.3 Renderer (`renderer.js`)
 - [ ] Create a full-window Canvas, handle `devicePixelRatio` for sharp text
@@ -311,23 +170,23 @@ Pure JavaScript. **No React, no Mantine, no network calls during trials.**
 - [ ] Listen to `keydown`, `pointerdown`
 - [ ] Use `event.timeStamp` as response time
 - [ ] Ignore `event.repeat` (held keys)
-- [ ] Only accept keys listed in `responseKeys`
+- [ ] Only accept keys listed in `validKeys`
 - [ ] `waitForResponse(keys, timeoutMs)` → `{ key, time }` or `null`
 
 ### 5.6 Scheduler (`scheduler.js`)
 - [ ] Drive everything from one `requestAnimationFrame` loop
 - [ ] Convert ms durations to **whole frames** (e.g. 500 ms at 60 Hz = 30 frames)
 - [ ] Record the actual onset time of the frame a stimulus appeared on
-- [ ] Record intended frames vs. actual frames shown
+- [ ] Record intended frames vs. actual frames shown (→ `frameData.intended/actual/dropped`)
 
 ### 5.7 Randomizer (`randomizer.js`)
 - [ ] Fisher–Yates shuffle
-- [ ] Max-repeats-in-a-row rule (reshuffle until valid, with a safety limit)
+- [ ] Max-repeats-in-a-row rule (`maxRepeats`, reshuffle until valid, with a safety limit)
 - [ ] Block repetitions
 - [ ] Seeded random (so a session's order can be reproduced from its seed)
 
 ### 5.8 Flow (`flow.js`)
-- [ ] Walk blocks in order, follow `flow` edges
+- [ ] Walk blocks in order, follow `branches`/`loops`
 - [ ] Evaluate branch conditions (e.g. accuracy of previous block)
 - [ ] Guard against infinite loops
 
@@ -345,7 +204,7 @@ Pure JavaScript. **No React, no Mantine, no network calls during trials.**
 ### 5.11 Main runner (`index.js`)
 - [ ] `runExperiment(experimentJson, { onProgress, onFinish })`
 - [ ] For each trial: fixation → stimulus → response → feedback → ITI → log
-- [ ] Each trial record includes: trial index, block, condition, stimulus, key, correct, RT, onset time, intended/actual frames, dropped frames
+- [ ] Each trial record matches the Trial model: `trialIndex`, `blockId`, `condition`, `stimulus`, `response`, `correct`, `rt`, `frameData`
 
 ### 5.12 Extra tracking
 - [ ] Count tab switches / window blur events
@@ -365,19 +224,19 @@ Pure JavaScript. **No React, no Mantine, no network calls during trials.**
 Keep this bundle **small**: no React, no Mantine. Plain JS + simple CSS.
 
 ### Screens (in order)
-- [ ] `loading.js` — read slug from URL (`/run/:slug`), fetch experiment, validate with Zod
-- [ ] `consent.js` — show researcher's consent text, "I agree" button (decline → exit screen)
+- [ ] `loading.js` — read slug from URL (`/run/:slug`), `loadExperiment(slug)`, validate with Zod
+- [ ] `consent.js` — show researcher's `settings.consentText`, "I agree" button (decline → exit screen)
 - [ ] `check.js` — device check + calibration, warn if score is low or screen too small
 - [ ] `instructions.js` — instruction text, "Start" button (this click also unlocks audio + fullscreen)
 - [ ] Preload stimuli with progress bar
-- [ ] Start session → `startSession()`, then `updateSession()` with device + calibration data
+- [ ] Start session → `startSession()`, then `updateSession()` with calibration data
 - [ ] Run the engine
 - [ ] Break screen between blocks (uploads happen here)
-- [ ] `complete.js` — thank you, **completion code**, **withdraw code** with a copy button
+- [ ] `complete.js` — thank you, **completion message**, **withdraw code** with a copy button (from `completeSession()`)
 - [ ] `withdraw.js` — page at `/run/withdraw` where a participant pastes their code to delete data
 
 ### Error screens
-- [ ] Experiment not found / closed
+- [ ] Experiment not found (404) / closed (410)
 - [ ] Unsupported browser
 - [ ] Network failed to load (with retry)
 - [ ] Upload failed at the end (keep retrying, tell participant not to close the tab)
@@ -391,10 +250,10 @@ Keep this bundle **small**: no React, no Mantine. Plain JS + simple CSS.
 ## Phase 7 — Dashboard (`pages/Dashboard.jsx`)
 
 - [ ] Fetch `listExperiments()`
-- [ ] Grid of cards: title, status badge (draft / live / closed), participant count, last edited
-- [ ] "New experiment" button → create → go to builder
-- [ ] Card menu: Edit, Results, Duplicate, Close, Delete (with confirm modal)
-- [ ] "Copy participant link" on live experiments
+- [ ] Grid of cards: title, status badge (**draft / active / closed**), last edited
+- [ ] "New experiment" button → `createExperiment()` → go to builder
+- [ ] Card menu: Edit, Results, Duplicate, Close (`updateExperiment(id, {status:"closed"})`), Delete (with confirm modal)
+- [ ] "Copy participant link" on active experiments (`participantUrl` from publish, or build from `slug`)
 - [ ] Empty state with "Create your first experiment" and "Start from Stroop template"
 - [ ] Loading skeletons + error state
 
@@ -429,27 +288,27 @@ Keep this bundle **small**: no React, no Mantine. Plain JS + simple CSS.
 - [ ] `TrialForm.jsx` — stimulus type/value, fixation, duration, response keys, correct key, timeout, feedback, ITI, condition
 - [ ] `RandomizationPanel.jsx` — shuffle on/off, max repeats, repetitions
 - [ ] `BranchEditor.jsx` — metric, operator, value
-- [ ] `SettingsPanel.jsx` — background colour, text colour, font size, fullscreen, instructions
+- [ ] `SettingsPanel.jsx` — background colour, text colour, font size, fullscreen, consent text, instructions
 - [ ] "Bulk add trials" helper (e.g. paste a CSV of words + colours)
 
 ### 8.5 Stimuli (`features/stimuli`)
 - [ ] `StimulusLibrary.jsx` — grid of uploaded files
 - [ ] `UploadDropzone.jsx` — Mantine Dropzone, images + audio only, size limit
-- [ ] Upload flow: `getUploadUrl()` → upload file straight to Vercel Blob → `saveStimulus()`
+- [ ] Upload flow: `getUploadUrl(filename, contentType)` → upload file straight to Vercel Blob using returned `uploadUrl`/`token` → `saveStimulus({name, type, url, size})`
 - [ ] `StimulusPicker.jsx` — modal to pick a file inside TrialForm
 
 ### 8.6 Compile (`compile.js`)
-- [ ] Convert React Flow nodes + edges → experiment JSON
-- [ ] Convert experiment JSON → nodes + edges (for loading saved work)
+- [ ] Convert React Flow nodes + edges → experiment `draft` JSON
+- [ ] Convert `draft` JSON → nodes + edges (for loading saved work)
 - [ ] Run `validateExperiment()` and highlight nodes with errors
 
 ### 8.7 Toolbar (`Toolbar.jsx`)
 - [ ] Editable experiment title
 - [ ] Undo / Redo
-- [ ] Save (disabled when not dirty) + "Saved ✓" indicator
+- [ ] Save (disabled when not dirty) → `updateExperiment(id, {title, draft})`, "Saved ✓" indicator
 - [ ] Autosave every 30 seconds when dirty
 - [ ] Preview → opens `run.html?preview=1` with the current JSON (no data saved)
-- [ ] Publish → confirm modal → shows link, copy button, and QR code
+- [ ] Publish → confirm modal → `publishExperiment(id)` → show `participantUrl`, copy button, and QR code
 - [ ] Warn before leaving the page with unsaved changes
 
 ### 8.8 Templates
@@ -461,14 +320,14 @@ Keep this bundle **small**: no React, no Mantine. Plain JS + simple CSS.
 
 ## Phase 9 — Results (`features/results` + `pages/ResultsPage.jsx`)
 
-- [ ] `SummaryCards.jsx` — participants started, completed, completion rate, mean RT, accuracy
+- [ ] `SummaryCards.jsx` — from `getSummary()`: total/completed/abandoned/excluded, completion rate, mean RT, accuracy, mean timing score
 - [ ] `RtChart.jsx` — bar chart of mean RT by condition
 - [ ] `AccuracyChart.jsx` — accuracy by condition
 - [ ] `QualityChart.jsx` — distribution of timing quality scores
-- [ ] `ParticipantTable.jsx` — anonymous ID, device, timing score, trials done, status, exclude toggle
+- [ ] `ParticipantTable.jsx` — from `getSessions()`: participantId, device, timing score, trial count, status, exclude toggle
 - [ ] Filter: hide excluded / low-quality sessions
-- [ ] Click a row → drawer with that participant's trial-by-trial data
-- [ ] `ExportButton.jsx` — CSV and JSON download
+- [ ] Click a row → drawer with `getSession()` trial-by-trial data
+- [ ] `ExportButton.jsx` — links to `exportUrl(expId, "csv"|"json")`
 - [ ] Auto-refresh every 5 seconds with `usePolling` (+ "Live" indicator)
 - [ ] Empty state: "No participants yet — share your link" with copy button
 
@@ -478,9 +337,8 @@ Keep this bundle **small**: no React, no Mantine. Plain JS + simple CSS.
 
 - [ ] Experiment title and description
 - [ ] Consent text editor
-- [ ] Max participants (optional)
-- [ ] Status controls: publish / close
-- [ ] Danger zone: delete experiment and all data
+- [ ] Status controls: publish / close (`updateExperiment(id, {status})`)
+- [ ] Danger zone: delete experiment and all data (`deleteExperiment`)
 
 ---
 
@@ -502,7 +360,7 @@ Keep this bundle **small**: no React, no Mantine. Plain JS + simple CSS.
 - [ ] Publish → open link on phone → complete → results appear on dashboard
 - [ ] Close tab mid-experiment → partial data still saved
 - [ ] Withdraw with code → data disappears from results
-- [ ] Visit a closed experiment link → friendly message
+- [ ] Visit a closed experiment link → friendly `410 Gone` message
 
 ### Quality checks
 - [ ] Slow 3G throttling → trials still accurate (only loading is slower)
@@ -515,16 +373,18 @@ Keep this bundle **small**: no React, no Mantine. Plain JS + simple CSS.
 ### Final
 - [ ] Production build works locally (`npm run build && npm run preview`)
 - [ ] Deployed on Vercel, `VITE_API_URL` points to the live backend
+- [ ] Confirm both `/` and `/run/test` load after a page refresh (rewrites in `vercel.json`)
 - [ ] Demo experiment seeded and ready
 
 ---
 
-## Suggested frontend split (2 people)
+## Frontend split (2 people)
+
+Phase 4 (schema) must be agreed on **together, first** — the engine and the builder both depend on it.
 
 | Person | Owns |
 |---|---|
-| Frontend A | Schema, engine, participant runtime (Phases 4–6) |
-| Frontend B | Shell, API layer, dashboard, builder, results (Phases 2, 3, 7–10) |
-| You | 🔐 Auth (Phase 2 auth tasks + backend auth routes) |
+| Frontend A | Schema (Phase 4), Timing Engine (Phase 5), Participant Runtime (Phase 6), Stretch: participant simulator |
+| Frontend B | App Shell + Auth wiring (Phase 2), API Layer (Phase 3), Dashboard (Phase 7), Builder (Phase 8), Results (Phase 9), Settings (Phase 10) |
 
-**Remember:** Phase 4 (schema) must be agreed on **before** A and B split up, because the engine and the builder both depend on it.
+Both: Phase 12 testing & polish, split by area (A tests engine/runtime flows, B tests dashboard/builder/results flows).
