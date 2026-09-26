@@ -138,7 +138,12 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
   function preview() {
     const data = compileOrNotify()
     if (!data) return
-    sessionStorage.setItem('preview-experiment', JSON.stringify({ ...data, settings }))
+    try {
+      localStorage.setItem('preview-experiment', JSON.stringify({ ...data, settings }))
+    } catch {
+      notifications.show({ color: 'red', message: 'Could not store the preview (browser storage is blocked)' })
+      return
+    }
     window.open('/run.html?preview=1', '_blank')
   }
 
@@ -198,7 +203,7 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
             </Menu.Dropdown>
           </Menu>
           <Button variant="light" onClick={preview} title="See the experiment exactly as a participant would">
-            Preview participant
+            Preview
           </Button>
           <Button variant="default" loading={saving} disabled={!isDirty} onClick={save}>
             {isDirty ? 'Save' : 'Saved ✓'}
