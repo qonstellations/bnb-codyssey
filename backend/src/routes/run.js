@@ -62,8 +62,10 @@ const trialsSchema = z.object({
 
 // ─── Helpers ───────────────────────────────────────────────
 
-function generateWithdrawCode() {
-  return crypto.randomBytes(4).toString('hex');
+// ponytail: crypto ids, retry on unique collision if throughput matters
+const CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+function generateCode() {
+  return [...crypto.randomBytes(8)].map((b) => CODE_ALPHABET[b % 62]).join('');
 }
 
 // ─── GET /:slug ────────────────────────────────────────────
@@ -117,12 +119,20 @@ router.post(
       throw new ApiError(410, 'This experiment is no longer accepting participants', [], '', 'GONE');
     }
 
-    const session = await Session.create({
-      experimentId: experiment._id,
-      participantId: uuidv4(),
-      deviceInfo: req.body.deviceInfo,
-      withdrawCode: generateWithdrawCode(),
-    });
+    let session;
+    for (let i = 0; i < 3; i++) {
+      try {
+        session = await Session.create({
+          experimentId: experiment._id,
+          participantId: uuidv4(),
+          deviceInfo: req.body.deviceInfo,
+          withdrawCode: generateCode(),
+        });
+        break;
+      } catch (err) {
+        if (err?.code !== 11000 || i === 2) throw err;
+      }
+    }
 
     res.status(201).json(
       new ApiResponse(
@@ -175,8 +185,10 @@ router.post(
     if (!session) {
       throw new ApiError(404, 'Session not found', [], '', 'NOT_FOUND');
     }
-    if (session.status === 'completed') {
-      throw new ApiError(409, 'Session is already completed', [], '', 'CONFLICT');
+    if (session.status !== 'in_progress') {
+      return res.status(409).json({
+        error: { code: 'CONFLICT', message: `Session is already ${session.status}` },
+      });
     }
 
     const docs = req.body.trials.map((t) => ({ ...t, sessionId: session._id }));
@@ -198,8 +210,10 @@ router.post(
     if (!session) {
       throw new ApiError(404, 'Session not found', [], '', 'NOT_FOUND');
     }
-    if (session.status === 'completed') {
-      throw new ApiError(409, 'Session is already completed', [], '', 'CONFLICT');
+    if (session.status !== 'in_progress') {
+      return res.status(409).json({
+        error: { code: 'CONFLICT', message: `Session is already ${session.status}` },
+      });
     }
 
     session.status = 'completed';
@@ -225,10 +239,12 @@ router.post('/sessions/:sessionId/beacon', rateLimit, async (req, res) => {
 
     const session = await Session.findById(req.params.sessionId);
     if (!session) return res.status(204).end();
+    if (session.status !== 'in_progress') return res.status(204).end();
 
-    // Save any remaining trials
-    if (data.trials?.length) {
-      const docs = data.trials.map((t) => ({ ...t, sessionId: session._id }));
+    // Save any remaining trials (validated — best-effort, drop garbage)
+    const parsed = trialsSchema.safeParse({ trials: data.trials ?? [] });
+    if (parsed.success && parsed.data.trials.length) {
+      const docs = parsed.data.trials.map((t) => ({ ...t, sessionId: session._id }));
       await Trial.insertMany(docs, { ordered: false }).catch(() => {});
     }
 

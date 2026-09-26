@@ -190,36 +190,36 @@ const { user, token, isLoading, login, signup, logout } = useAuth();
 ### Endpoint files
 
 **`api/experiments.js`**
-- [ ] `listExperiments()` → `GET /api/experiments`
-- [ ] `createExperiment(data)` → `POST /api/experiments`
-- [ ] `getExperiment(id)` → `GET /api/experiments/:id`
-- [ ] `updateExperiment(id, data)` → `PUT /api/experiments/:id`
-- [ ] `deleteExperiment(id)` → `DELETE /api/experiments/:id`
-- [ ] `duplicateExperiment(id)` → `POST /api/experiments/:id/duplicate`
-- [ ] `publishExperiment(id)` → `POST /api/experiments/:id/publish`
-- [ ] `closeExperiment(id)` → `POST /api/experiments/:id/close`
+- [ ] `listExperiments()` → `GET /api/v1/experiments`
+- [ ] `createExperiment(data)` → `POST /api/v1/experiments`
+- [ ] `getExperiment(id)` → `GET /api/v1/experiments/:id`
+- [ ] `updateExperiment(id, data)` → `PUT /api/v1/experiments/:id`
+- [ ] `deleteExperiment(id)` → `DELETE /api/v1/experiments/:id`
+- [ ] `duplicateExperiment(id)` → `POST /api/v1/experiments/:id/duplicate`
+- [ ] `publishExperiment(id)` → `POST /api/v1/experiments/:id/publish`
+- [ ] `closeExperiment(id)` → `PUT /api/v1/experiments/:id` with `{ "status": "closed" }`
 
 **`api/stimuli.js`**
-- [ ] `listStimuli()` → `GET /api/stimuli`
-- [ ] `getUploadUrl(file)` → `POST /api/stimuli/upload-url`
-- [ ] `saveStimulus(meta)` → `POST /api/stimuli`
-- [ ] `deleteStimulus(id)` → `DELETE /api/stimuli/:id`
+- [ ] `listStimuli()` → `GET /api/v1/stimuli`
+- [ ] `getUploadUrl(file)` → `POST /api/v1/stimuli/upload-url`
+- [ ] `saveStimulus(meta)` → `POST /api/v1/stimuli`
+- [ ] `deleteStimulus(id)` → `DELETE /api/v1/stimuli/:id`
 
 **`api/results.js`**
-- [ ] `getSummary(expId)` → `GET /api/results/:expId/summary`
-- [ ] `getSessions(expId)` → `GET /api/results/:expId/sessions`
-- [ ] `getSession(expId, sessionId)` → `GET /api/results/:expId/sessions/:sessionId`
-- [ ] `setExcluded(expId, sessionId, excluded)` → `PATCH /api/results/:expId/sessions/:sessionId`
-- [ ] `exportUrl(expId, format)` → builds `/api/results/:expId/export?format=csv|json`
+- [ ] `getSummary(expId)` → `GET /api/v1/results/:expId/summary`
+- [ ] `getSessions(expId)` → `GET /api/v1/results/:expId/sessions`
+- [ ] `getSession(expId, sessionId)` → `GET /api/v1/results/:expId/sessions/:sessionId`
+- [ ] `setExcluded(expId, sessionId, excluded)` → `PATCH /api/v1/results/:expId/sessions/:sessionId`
+- [ ] `exportUrl(expId, format)` → builds `/api/v1/results/:expId/export?format=csv|json`
 
 **`api/run.js`** (participant, no auth, no Mantine — keep it tiny)
-- [ ] `loadExperiment(slug)` → `GET /api/run/:slug`
-- [ ] `startSession(slug, device)` → `POST /api/run/:slug/sessions`
-- [ ] `updateSession(sessionId, data)` → `PATCH /api/run/sessions/:sessionId`
-- [ ] `uploadTrials(sessionId, trials)` → `POST /api/run/sessions/:sessionId/trials`
-- [ ] `completeSession(sessionId)` → `POST /api/run/sessions/:sessionId/complete`
+- [ ] `loadExperiment(slug)` → `GET /api/v1/run/:slug`
+- [ ] `startSession(slug, device)` → `POST /api/v1/run/:slug/sessions`
+- [ ] `updateSession(sessionId, data)` → `PATCH /api/v1/run/sessions/:sessionId`
+- [ ] `uploadTrials(sessionId, trials)` → `POST /api/v1/run/sessions/:sessionId/trials`
+- [ ] `completeSession(sessionId)` → `POST /api/v1/run/sessions/:sessionId/complete`
 - [ ] `beacon(sessionId, trials)` → `navigator.sendBeacon(.../beacon, JSON string)`
-- [ ] `withdraw(code)` → `DELETE /api/run/withdraw/:code`
+- [ ] `withdraw(code)` → `DELETE /api/v1/run/withdraw/:code`
 
 ### Shared hooks
 - [ ] `hooks/useApi.js` — runs a request, returns `{ data, error, loading, reload }`

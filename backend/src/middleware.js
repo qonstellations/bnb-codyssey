@@ -87,7 +87,7 @@ export const rateLimit = asyncHandler(async (req, res, next) => {
     const rl = await getLimiter();
     if (!rl) return next();
 
-    const ip = req.headers['x-forwarded-for'] || req.ip;
+    const ip = String(req.headers['x-forwarded-for'] || req.ip).split(',')[0].trim();
     const { success } = await rl.limit(ip);
     if (!success) {
       throw new ApiError(429, 'Too many requests', [], '', 'RATE_LIMITED');

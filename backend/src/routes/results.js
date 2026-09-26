@@ -257,7 +257,9 @@ router.get(
         .map((col) => {
           const val = row[col];
           if (val === null || val === undefined) return '';
-          const str = String(val);
+          let str = String(val);
+          // Prevent CSV formula injection (Excel executes =,+,-,@ prefixes)
+          if (/^[=+\-@\t\r]/.test(str)) str = `'${str}`;
           // Quote fields containing commas, quotes, or newlines
           return str.includes(',') || str.includes('"') || str.includes('\n')
             ? `"${str.replace(/"/g, '""')}"`

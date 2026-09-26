@@ -10,7 +10,7 @@ const router = Router();
 // ─── Schemas ───────────────────────────────────────────────
 
 const uploadUrlSchema = z.object({
-  filename: z.string().max(255),
+  filename: z.string().trim().min(1).max(255),
   contentType: z.string().refine(
     (ct) => ct.startsWith('image/') || ct.startsWith('audio/') || ct.startsWith('video/'),
     { message: 'Content type must be image/*, audio/*, or video/*' }
@@ -18,10 +18,12 @@ const uploadUrlSchema = z.object({
 });
 
 const createSchema = z.object({
-  name: z.string().max(200),
+  name: z.string().trim().min(1).max(200),
   type: z.enum(['image', 'audio', 'video']),
-  url: z.string().url(),
-  size: z.number().int().positive(),
+  url: z.string().url().refine((u) => u.includes('.blob.vercel-storage.com'), {
+    message: 'URL must be a Vercel Blob URL',
+  }),
+  size: z.number().int().positive().max(50 * 1024 * 1024),
 });
 
 // ─── POST /upload-url ──────────────────────────────────────
