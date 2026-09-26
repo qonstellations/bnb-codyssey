@@ -21,6 +21,13 @@ import { experimentSchema } from '../shared/experimentSchema.js'
 
 const root = document.getElementById('root')
 
+function makeDemoCode() {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  let s = ''
+  for (let i = 0; i < 8; i++) s += chars[Math.floor(Math.random() * chars.length)]
+  return s
+}
+
 async function loadPreview() {
   const raw = sessionStorage.getItem('preview-experiment')
   const parsed = experimentSchema.safeParse(JSON.parse(raw ?? 'null'))
@@ -46,8 +53,15 @@ async function main() {
   const slug = slugMatch[1]
 
   let experiment
+  let isDemo = false
   try {
-    ;({ experiment } = isPreview ? await loadPreview() : await loadingScreen(root, slug))
+    if (isPreview) {
+      ;({ experiment } = await loadPreview())
+    } else {
+      const loaded = await loadingScreen(root, slug)
+      experiment = loaded.experiment
+      isDemo = loaded.demo === true
+    }
   } catch (err) {
     if (err.kind === 'not_found') return notFoundScreen(root)
     if (err.kind === 'gone') return goneScreen(root)
@@ -66,7 +80,11 @@ async function main() {
 
   let sessionId
   let withdrawCode
-  if (!isPreview) {
+  if (isDemo) {
+    // Demo-published run: no backend, so mint a local session. Nothing is
+    // uploaded; trials stay in this browser.
+    withdrawCode = makeDemoCode()
+  } else if (!isPreview) {
     try {
       ;({ sessionId, withdrawCode } = await startSession(slug, calibration.deviceInfo))
       await updateSession(sessionId, {
@@ -94,7 +112,7 @@ async function main() {
   canvas.className = 'rt-canvas'
   root.replaceChildren(canvas)
 
-  const uploader = isPreview ? null : createUploader({ sessionId })
+  const uploader = isPreview || isDemo ? null : createUploader({ sessionId })
   let pendingTrials = []
   uploader?.attachUnloadHandlers(() => pendingTrials)
 
@@ -128,6 +146,11 @@ async function main() {
 
   if (isPreview) {
     renderScreen(root, h('div', { class: 'rt-screen' }, [h('h1', { text: 'Preview complete' })]))
+    return
+  }
+
+  if (isDemo) {
+    completeScreen(root, withdrawCode)
     return
   }
 
