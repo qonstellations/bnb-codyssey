@@ -43,7 +43,16 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
   const [publishResult, setPublishResult] = useState(null)
   const [publishing, setPublishing] = useState(false)
   const [aiOpen, setAiOpen] = useState(false)
-  const [howOpen, setHowOpen] = useState(false)
+  // First visit to the builder opens the guide once.
+  const [howOpen, setHowOpen] = useState(() => {
+    try {
+      if (localStorage.getItem('hiw-seen')) return false
+      localStorage.setItem('hiw-seen', '1')
+      return true
+    } catch {
+      return false
+    }
+  })
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [saveTpl, setSaveTpl] = useState(null) // { title, description, draft } while the save dialog is open
   const [savingTpl, setSavingTpl] = useState(false)
@@ -213,7 +222,22 @@ export default function Toolbar({ experimentId, title, onTitleChange }) {
       </Group>
 
       <AiGenerateModal opened={aiOpen} onClose={() => setAiOpen(false)} onTitleChange={onTitleChange} />
-      <HowItWorksModal opened={howOpen} onClose={() => setHowOpen(false)} />
+      <HowItWorksModal
+        opened={howOpen}
+        onClose={() => setHowOpen(false)}
+        onOpenTemplates={() => {
+          setHowOpen(false)
+          setGalleryOpen(true)
+        }}
+        onOpenAi={() => {
+          setHowOpen(false)
+          setAiOpen(true)
+        }}
+        onPreview={() => {
+          setHowOpen(false)
+          preview()
+        }}
+      />
 
       <TemplateGallery opened={galleryOpen} onClose={() => setGalleryOpen(false)} onPick={applyTemplate} />
 
