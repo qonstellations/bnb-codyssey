@@ -2,9 +2,7 @@ import { useState } from 'react'
 import { Dropzone } from '@mantine/dropzone'
 import { Group, Progress, Stack, Text } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { upload } from '@vercel/blob/client'
-import { API_URL } from '../../shared/config.js'
-import { saveStimulus } from '../../api/stimuli.js'
+import { saveStimulus, uploadStimulusFile } from '../../api/stimuli.js'
 
 const MAX_SIZE = 20 * 1024 * 1024 // 20MB
 const ACCEPT = ['image/*', 'audio/*']
@@ -24,12 +22,8 @@ export default function UploadDropzone({ onUploaded }) {
       for (const file of files) {
         const type = stimulusType(file.type)
         if (!type) continue
-        // Straight to Vercel Blob via the backend's client-token route —
-        // the file itself never touches our server.
-        const blob = await upload(file.name, file, {
-          access: 'public',
-          handleUploadUrl: `${String(API_URL ?? '').replace(/\/$/, '')}/api/v1/stimuli/upload-url`,
-        })
+        // Straight to Vercel Blob — the file itself never touches our server.
+        const blob = await uploadStimulusFile(file)
         const { stimulus } = await saveStimulus({
           name: file.name,
           type,

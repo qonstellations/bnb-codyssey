@@ -17,10 +17,10 @@ export const getUploadUrl = asyncHandler(async (req, res) => {
     onBeforeGenerateToken: async () => ({
       allowedContentTypes: [req.body.contentType],
       maximumSizeInBytes: 50 * 1024 * 1024, // 50 MB
+      addRandomSuffix: true, // re-uploading "red.png" must not collide
     }),
-    onUploadCompleted: async () => {
-      // Could auto-create stimulus record here in the future
-    },
+    // No onUploadCompleted: Blob would call it back without our auth header (401).
+    // The client saves the record itself via POST /stimuli.
   });
 
   res.json(new ApiResponse(200, jsonResponse, 'Upload URL generated successfully'));
