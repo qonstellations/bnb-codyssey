@@ -28,17 +28,14 @@ called out explicitly.
 
 ## Deployment status
 
-**Localhost only, by decision.** There is no `vercel.json`, no Dockerfile, no CI configuration
-and no public URL. Two processes on one machine:
+**Vercel-ready, not yet deployed.** There are two Vercel projects from this repo: API
+(`backend/`, one Express function behind `backend/vercel.json`) and web (`frontend/`, with SPA
+and `/run/*` rewrites in `frontend/vercel.json`). The runbook is in the
+[README](../README.md#deployment-status). There is still no Dockerfile and no CI.
 
-- API on `:3001`
-- web app on `:5173`, serving both the researcher app and the participant app
-
-Vercel Blob is still used for stimulus files, because that is a separate storage service rather
-than a deployment of this app. Upstash Redis is used for rate limiting.
-
-This is the largest single gap between the project and its stated goal, which describes a SaaS
-platform. [P0 item 2](#p0--demo-blockers) is the workaround; a real deployment is the fix.
+Stimulus upload was broken in any environment until the fix that shipped with this change: the
+SDK's `upload()` sent no auth header to `/stimuli/upload-url`. The token is now fetched through
+`request()` and the file is uploaded with `put()`.
 
 ## Stack
 
@@ -234,7 +231,7 @@ Full detail, including every known gap, in [privacy.md](privacy.md).
 | # | Item | State |
 |---|---|---|
 | 1 | ~~AI modal 404s~~ — the client posted to a route that no longer existed | **done.** `api/ai.js` posts to `/generate` with `{ prompt }` and expands the returned recipe |
-| 2 | **A reviewer's phone cannot open a participant link on localhost** — a phone's `localhost` is the phone, not your laptop | **open.** `--host` and the LAN `CORS_ORIGIN` / `FRONTEND_URL` variables are documented; a public tunnel for the demo is the remaining step. See [Demo runbook](#demo-runbook) |
+| 2 | **A reviewer's phone cannot open a participant link on localhost** — a phone's `localhost` is the phone, not your laptop | **config done — deploy pending.** See [README](../README.md#deployment-status). Until then: `--host` and the LAN `CORS_ORIGIN` / `FRONTEND_URL` variables are documented; a public tunnel for the demo is the remaining step. See [Demo runbook](#demo-runbook) |
 | 3 | ~~Copy buttons silently fail on a LAN phone~~ — `navigator.clipboard` needs a secure context | **done.** The call sites go through `shared/clipboard.js`, which falls back to selecting the on-screen text |
 | 4 | ~~A fresh Atlas cluster breaks on the second experiment~~ — a non-partial unique `slug` index rejects duplicate `null` slugs | **done.** `db.js` inspects the indexes on boot, drops a bad `slug_1` and re-syncs |
 
@@ -242,7 +239,7 @@ Full detail, including every known gap, in [privacy.md](privacy.md).
 
 | # | Item | Why it matters | Size |
 |---|---|---|---|
-| 5 | **A public URL for the demo** | Everything else is invisible to a judge who cannot open the link. Cheapest path is a tunnel — no account, no config. | 5 min |
+| 5 | **A public URL for the demo** — Vercel config shipped, first deploy pending | Everything else is invisible to a judge who cannot open the link. Cheapest path is a tunnel — no account, no config. | 5 min |
 | 6 | ~~Validate drafts server-side on publish~~ | **done** — `publishExperiment` calls `validateExperiment(exp.draft)` and 400s with the first error; it also publishes the *normalised* draft, so participants get defaults filled in |
 | 7 | ~~Standard deviation, n and SEM in the summary~~ | **done** | |
 | 8 | ~~Play audio stimuli~~ | **done** | |
@@ -304,7 +301,7 @@ they are not repeated:
 |---|---|
 | "The route test script is throwaway, not committed" | It is committed as `backend/test-routes.mjs`, with 84 assertions. |
 | "`frontend/README.md` exists but is the Vite default" | There is no `frontend/README.md`. The env-var documentation lives in the [root README](../README.md#environment) instead. |
-| "Delete the two `vercel.json` files" | Already deleted. |
+| "Delete the two `vercel.json` files" | Deleted, then re-added for the Vercel deploy. |
 | "Seed a demo experiment with sample participants" | Already done — `backend/seed-demo.js`, 12 sessions. |
 | "Drag-from-palette is not done" | Done, in `Canvas.jsx`. |
 | "The AI client still calls `/ai/generate-experiment`" | Fixed. |

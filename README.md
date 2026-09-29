@@ -297,12 +297,38 @@ The frontend has no component or integration tests at all.
 
 ## Deployment status
 
-**Localhost only, by decision.** There is no `vercel.json`, no Dockerfile, no CI configuration
-and no public URL — the two processes run on one machine.
+**Vercel-ready, two projects from this repo.** `backend/vercel.json` routes every path to the
+Express function in `backend/api/index.js`. `frontend/vercel.json` sends `/run/*` to the
+participant app and everything else to the researcher SPA. Not yet deployed.
 
-This is the largest gap between the project and its stated goal, which describes a SaaS platform.
-Vercel Blob and Upstash Redis are used as services, but the application itself is not deployed.
-The remaining work is tracked as [P0 item 2](docs/roadmap.md#p0--demo-blockers).
+**One-time setup**
+
+1. **MongoDB Atlas**: create a prod DB user and allow `0.0.0.0/0` under Network Access (Vercel
+   IPs are dynamic).
+2. **API project**: import the repo, set Root Directory to `backend`, and leave the framework
+   preset at *Other*. In Storage, connect a **public** Blob store (this sets
+   `BLOB_READ_WRITE_TOKEN`). From the Marketplace, add Upstash Redis (this sets
+   `UPSTASH_REDIS_REST_*`). Set `MONGODB_URI`, fresh `ACCESS_TOKEN_SECRET` and
+   `REFRESH_TOKEN_SECRET` values (`openssl rand -hex 64`), and `GROQ_API_KEY`. Deploy.
+3. **Web project**: import the same repo, set Root Directory to `frontend` (Vite preset), and set
+   `VITE_API_URL=https://<api>.vercel.app`. It is baked in at build time, so redeploy after any
+   change. Deploy.
+4. Back on the API, set `FRONTEND_URL` and `CORS_ORIGIN` to `https://<web>.vercel.app`
+   (comma-separate extra origins such as a custom domain), then redeploy.
+5. Seed once from your machine: `cd backend && MONGODB_URI=<prod> SEED_PASSWORD=<pick> npm run seed`.
+
+**Check it**
+
+```bash
+curl https://<api>.vercel.app/api/v1/health
+cd backend && TEST_API_URL=https://<api>.vercel.app/api/v1 MONGODB_URI=<prod> npm test
+```
+
+Then, in a browser, upload an image and an audio stimulus, publish, and complete a run from
+`/run/<slug>` on a phone.
+
+Preview deployments of the web project have their own origin, so CORS blocks them unless you
+add that origin to `CORS_ORIGIN`.
 
 ## Documentation
 
