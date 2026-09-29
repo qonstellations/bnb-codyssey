@@ -7,7 +7,7 @@ await connectDB();
 const PORT = process.env.PORT || 3001;
 
 // Local dev server — Vercel ignores this in production
-if (process.env.NODE_ENV !== 'production') {
+if (!process.env.VERCEL) {
   app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`));
 }
 
