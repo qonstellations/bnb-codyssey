@@ -88,6 +88,7 @@ export const startSession = asyncHandler(async (req, res) => {
       session = await Session.create({
         experimentId: experiment._id,
         participantId: uuidv4(),
+        externalId: latest?.snapshot?.settings?.collectExternalId ? req.body.externalId : undefined,
         deviceInfo: req.body.deviceInfo,
         withdrawCode: generateCode(),
         tokenHash: hashSessionToken(token),

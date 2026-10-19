@@ -26,6 +26,8 @@ const createSessionSchema = z.object({
     screenH: z.number().int().positive(),
     pixelRatio: z.number().positive(),
   }),
+  // Recruitment-panel id (Prolific etc.); only stored when the study opts in.
+  externalId: z.string().regex(/^[\w.-]{1,64}$/).optional(),
 });
 
 const patchSessionSchema = z

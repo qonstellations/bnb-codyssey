@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 const sessionSchema = new mongoose.Schema({
   experimentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Experiment', required: true },
   participantId: { type: String, required: true },
+  externalId: { type: String }, // recruitment-panel id, only when settings.collectExternalId
   deviceInfo: {
     browser: { type: String },
     os: { type: String },

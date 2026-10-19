@@ -59,6 +59,9 @@ export function friendlyError(issue, blocks = []) {
     return `'${label}' has no trials yet. Click it and add a trial.`;
   }
   if (/consentText/.test(m)) return 'Add a consent text under Experiment settings (right panel).';
+  if (/completionRedirectUrl|completion redirect/.test(m)) {
+    return 'The completion redirect must be a full https:// link (Experiment settings, right panel).';
+  }
   if (/text stimulus needs/.test(m)) return 'A trial is missing its text. Open the step and fill in the content.';
   if (/needs 'url'/.test(m)) return 'An image/audio trial is missing its file. Open the step and pick one.';
   if (/correctKey/.test(m)) {

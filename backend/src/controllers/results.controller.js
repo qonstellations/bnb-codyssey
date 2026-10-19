@@ -135,14 +135,14 @@ export const updateSessionStatus = asyncHandler(async (req, res) => {
 });
 
 const TRIAL_COLUMNS = [
-  'sessionId', 'participantId', 'status', 'excluded', 'browser', 'os', 'screenW', 'screenH',
+  'sessionId', 'participantId', 'externalId', 'status', 'excluded', 'browser', 'os', 'screenW', 'screenH',
   'pixelRatio', 'refreshRate', 'jitter', 'timingScore', 'version', 'seed', 'tabSwitches',
   'blurCount', 'fullscreenExits', 'startedAt', 'completedAt', 'trialIndex', 'blockId',
   'condition', 'stimulusType', 'stimulusContent', 'stimulusUrl', 'response', 'correct', 'rt',
   'framesIntended', 'framesActual', 'framesDropped',
 ];
 const SESSION_COLUMNS = [
-  'sessionId', 'participantId', 'status', 'excluded', 'blockId', 'trials', 'scoredTrials',
+  'sessionId', 'participantId', 'externalId', 'status', 'excluded', 'blockId', 'trials', 'scoredTrials',
   'accuracy', 'meanRt', 'medianRt', 'sdRt', 'timingScore', 'startedAt', 'completedAt', 'durationSec',
   'consentAt', 'consentHash',
 ];
@@ -163,6 +163,7 @@ function sessionSummaryRows(sessions, trials) {
       return {
         sessionId: s._id.toString(),
         participantId: s.participantId,
+        externalId: s.externalId ?? '',
         status: s.status,
         excluded: s.excluded,
         blockId,
@@ -228,6 +229,7 @@ export const exportData = asyncHandler(async (req, res) => {
     return {
       sessionId: s._id.toString(),
       participantId: s.participantId,
+      externalId: s.externalId ?? '',
       status: s.status,
       excluded: s.excluded,
       browser: s.deviceInfo?.browser ?? '',

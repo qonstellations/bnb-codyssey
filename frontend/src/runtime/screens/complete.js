@@ -1,6 +1,6 @@
 import { h, renderScreen } from '../dom.js'
 
-export function completeScreen(root, withdrawCode) {
+export function completeScreen(root, withdrawCode, redirectUrl) {
   // No clipboard on insecure origins (http://<LAN-IP>) — highlight the code so
   // the participant can copy it by hand instead of a button that does nothing.
   const copy = () => {
@@ -25,6 +25,16 @@ export function completeScreen(root, withdrawCode) {
       }),
       h('div', { class: 'rt-code', text: withdrawCode }),
       h('button', { class: 'rt-btn rt-btn-secondary', onClick: copy, text: 'Copy code' }),
+      // A button, not an auto-redirect, so the withdrawal code is seen before leaving.
+      ...(redirectUrl
+        ? [
+            h('button', {
+              class: 'rt-btn',
+              onClick: () => window.location.assign(redirectUrl),
+              text: 'Finish and return',
+            }),
+          ]
+        : []),
     ])
   )
 }

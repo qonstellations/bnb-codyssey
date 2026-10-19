@@ -29,6 +29,7 @@ The `Session` document is the complete record of a participant. Its entire ident
 {
   experimentId,                  // which study
   participantId,                 // server-generated UUID v4
+  externalId,                    // recruitment-panel id — only if the study opts in, see below
   deviceInfo: {
     browser,                     // "Chrome 141"  — a family + major version
     os,                          // "macOS"       — a family
@@ -59,6 +60,16 @@ a person, so it belongs in an ethics disclosure; see
 
 This is the strongest claim the platform makes, and it is enforced structurally rather than by
 policy.
+
+**One opt-in exception: `externalId`.** A study recruiting through a panel (Prolific and
+similar) can turn on *Record panel ID* in the builder's Experiment settings. The runtime then
+reads `?pid=` (or `?PROLIFIC_PID=`) from the participant link and the server stores it on the
+session, so the researcher can approve payments. It is a pseudonymous id the panel issued, not a
+name or email — but the panel can map it back to a person, so with it on the data is
+**pseudonymised, not anonymous**. It is off by default, frozen per published version, only
+stored when that version opted in, limited to 64 characters of `[A-Za-z0-9_.-]`, and appears in
+both exports. A study can also set a *Completion redirect URL* (https only), shown as a
+"Finish and return" button after the withdrawal code; nothing is appended to it.
 
 ## Anonymisation
 

@@ -97,6 +97,7 @@ hand-rolling `res.status().json()`.
 
 - MongoDB `_id` fields → 24-char hex strings (malformed → `404`, never `500`)
 - `participantId` → UUID v4 (generated server-side)
+- `externalId` → recruitment-panel id from the run link, ≤ 64 chars of `[A-Za-z0-9_.-]`, stored only when `settings.collectExternalId` is on
 - `withdrawCode` → 8-char base62 alphanumeric (generated server-side)
 - `slug` → 8-char base62 alphanumeric (generated on publish)
 
@@ -162,6 +163,7 @@ exempt, so unlimited drafts can coexist; publish retries 3× on collision)
   _id:            ObjectId,      // auto
   experimentId:   ObjectId,      // ref → Experiment
   participantId:  String,        // UUID v4
+  externalId:     String,        // panel id, only when settings.collectExternalId
   deviceInfo: {
     browser:      String,        // e.g. "Chrome 126"
     os:           String,        // e.g. "macOS 15.0"
@@ -524,7 +526,9 @@ Fetch the published experiment JSON so the engine can preload and run offline.
       "settings": {
         "consentText": "You are participating in a study...",
         "fullscreen": true,
-        "showProgressBar": true
+        "showProgressBar": true,
+        "collectExternalId": false,
+        "completionRedirectUrl": null
       },
       "blocks": [
         {
@@ -583,12 +587,14 @@ Start a new participant session.
     "screenW": 1920,
     "screenH": 1080,
     "pixelRatio": 2
-  }
+  },
+  "externalId": "5f3a9c1e2b"
 }
 ```
 
 | Field | Type | Required | Validation |
 |---|---|---|---|
+| `externalId` | `string` | no | `^[A-Za-z0-9_.-]{1,64}$`; ignored unless the published version has `settings.collectExternalId` |
 | `deviceInfo.browser` | `string` | yes | max 100 chars |
 | `deviceInfo.os` | `string` | yes | max 100 chars |
 | `deviceInfo.screenW` | `number` | yes | integer, > 0 |
@@ -1742,7 +1748,7 @@ Content-Disposition: attachment; filename="stroop-task_trials_2026-09-26.csv"
 **`kind=trials`** (default) — one row per trial, session fields denormalized:
 
 ```
-sessionId,participantId,status,excluded,browser,os,screenW,screenH,pixelRatio,refreshRate,jitter,timingScore,version,seed,tabSwitches,blurCount,fullscreenExits,startedAt,completedAt,trialIndex,blockId,condition,stimulusType,stimulusContent,stimulusUrl,response,correct,rt,framesIntended,framesActual,framesDropped
+sessionId,participantId,externalId,status,excluded,browser,os,screenW,screenH,pixelRatio,refreshRate,jitter,timingScore,version,seed,tabSwitches,blurCount,fullscreenExits,startedAt,completedAt,trialIndex,blockId,condition,stimulusType,stimulusContent,stimulusUrl,response,correct,rt,framesIntended,framesActual,framesDropped
 ```
 
 ```json
@@ -1787,7 +1793,7 @@ sessionId,participantId,status,excluded,browser,os,screenW,screenH,pixelRatio,re
 session), with accuracy/RT already aggregated:
 
 ```
-sessionId,participantId,status,excluded,blockId,trials,scoredTrials,accuracy,meanRt,medianRt,sdRt,timingScore,startedAt,completedAt,durationSec,consentAt,consentHash
+sessionId,participantId,externalId,status,excluded,blockId,trials,scoredTrials,accuracy,meanRt,medianRt,sdRt,timingScore,startedAt,completedAt,durationSec,consentAt,consentHash
 ```
 
 ```json

@@ -82,7 +82,11 @@ async function loadPreview() {
 
 async function main() {
   const path = window.location.pathname
-  const isPreview = new URLSearchParams(window.location.search).get('preview') === '1'
+  const params = new URLSearchParams(window.location.search)
+  const isPreview = params.get('preview') === '1'
+  // Panel id from the recruitment link; dropped (not rejected) if malformed so the run still starts.
+  const pid = params.get('pid') ?? params.get('PROLIFIC_PID')
+  const externalId = /^[\w.-]{1,64}$/.test(pid ?? '') ? pid : undefined
 
   if (path === '/run/withdraw') {
     withdrawScreen(root)
@@ -122,7 +126,7 @@ async function main() {
   let seed = Date.now() // preview: fresh order each run; real sessions use the server's stored seed
   if (!isPreview) {
     try {
-      ;({ sessionId, withdrawCode, token, seed } = await startSession(slug, calibration.deviceInfo))
+      ;({ sessionId, withdrawCode, token, seed } = await startSession(slug, calibration.deviceInfo, externalId))
       await updateSession(sessionId, token, {
         calibration: {
           refreshRate: calibration.refreshRate,
@@ -198,7 +202,7 @@ async function main() {
     await uploader.flush(pendingTrials)
     pendingTrials = []
     const result = await completeSession(sessionId, token, engagement.getCounts())
-    completeScreen(root, result.withdrawCode ?? withdrawCode)
+    completeScreen(root, result.withdrawCode ?? withdrawCode, experiment.settings.completionRedirectUrl)
   }
   try {
     await finish()

@@ -1,4 +1,4 @@
-import { ColorInput, NumberInput, Stack, Switch, Text, Textarea } from '@mantine/core'
+import { ColorInput, NumberInput, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core'
 import { useBuilderStore } from '../store.js'
 
 export default function SettingsPanel() {
@@ -21,6 +21,19 @@ export default function SettingsPanel() {
         minRows={3}
         value={settings.instructionsText ?? ''}
         onChange={(e) => setSettings({ instructionsText: e.currentTarget.value })}
+      />
+      <Switch
+        label="Record panel ID"
+        description="Saves ?pid= or ?PROLIFIC_PID= from the link on the session"
+        checked={settings.collectExternalId ?? false}
+        onChange={(e) => setSettings({ collectExternalId: e.currentTarget.checked })}
+      />
+      <TextInput
+        label="Completion redirect URL"
+        description="Optional, https://. Shown as a return button after the withdrawal code"
+        placeholder="https://app.prolific.com/submissions/complete?cc=…"
+        value={settings.completionRedirectUrl ?? ''}
+        onChange={(e) => setSettings({ completionRedirectUrl: e.currentTarget.value.trim() || null })}
       />
       <Switch
         label="Fullscreen"

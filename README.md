@@ -87,6 +87,8 @@ The full explanation, with the code, is in
   and block repetition
 - Stimulus library with direct-to-Blob upload
 - One-click publish producing a participant link; every publish freezes an immutable version
+- Recruitment-panel ready: optionally record `?pid=` / `?PROLIFIC_PID=` from the link, and send
+  participants back to the panel with a completion redirect
 - Results dashboard (manual refresh) — frequency-distribution curves for RT and accuracy by condition and for timing quality,
   per-participant table with a per-trial drawer
 - Reproducible trial order — every session stores the PRNG seed that produced its shuffle
@@ -276,7 +278,9 @@ docs/                   documentation — architecture, privacy, API reference, 
 ## Testing
 
 There is no test framework. Verification is a set of hand-rolled assertion scripts, which run
-with plain `node` and have no runner, coverage measurement or CI.
+with plain `node` and have no runner or coverage measurement. CI
+(`.github/workflows/ci.yml`) runs lint, the frontend check scripts and the build; the API
+contract test still runs by hand.
 
 ```bash
 # needs the API running; paces itself under the rate limiter, ~3 min

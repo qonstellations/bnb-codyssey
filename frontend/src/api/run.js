@@ -7,8 +7,8 @@ export function loadExperiment(slug) {
   return request("GET", `/run/${slug}`);
 }
 
-export function startSession(slug, deviceInfo) {
-  return request("POST", `/run/${slug}/sessions`, { deviceInfo });
+export function startSession(slug, deviceInfo, externalId) {
+  return request("POST", `/run/${slug}/sessions`, { deviceInfo, externalId });
 }
 
 // `token` comes from startSession; the backend rejects session writes without it.

@@ -82,6 +82,9 @@ const settingsSchema = z.object({
   backgroundColor: z.string().max(20).nullable().optional(),
   textColor: z.string().max(20).nullable().optional(),
   fontSize: z.number().int().min(8).max(72).nullable().optional(),
+  // Recruitment panels: store ?pid= / ?PROLIFIC_PID= on the session (opt-in), send the participant back on finish.
+  collectExternalId: z.boolean().default(false),
+  completionRedirectUrl: z.string().url().startsWith("https://", "completion redirect must be an https:// URL").max(2000).nullable().optional(),
 });
 
 // ---------- top-level draft / snapshot ----------

@@ -31,7 +31,9 @@ called out explicitly.
 **Vercel-ready, not yet deployed.** There are two Vercel projects from this repo: API
 (`backend/`, one Express function behind `backend/vercel.json`) and web (`frontend/`, with SPA
 and `/run/*` rewrites in `frontend/vercel.json`). The runbook is in the
-[README](../README.md#deployment-status). There is still no Dockerfile and no CI.
+[README](../README.md#deployment-status). There is still no Dockerfile. CI (`.github/workflows/ci.yml`) runs lint, the three
+`.check.mjs`/selfcheck scripts and the frontend build on every PR and push to `main`; the API
+contract test is not in it.
 
 Stimulus upload was broken in any environment until the fix that shipped with this change: the
 SDK's `upload()` sent no auth header to `/stimuli/upload-url`. The token is now fetched through
@@ -115,6 +117,9 @@ Pure JavaScript in `frontend/src/engine/`, no React, no network. See
 - [~] `draft` is `z.any()` on experiment create and update, so saves are still unvalidated — but
       `publishExperiment` now calls `validateExperiment()` and refuses with a 400, and publishes
       the *normalised* draft. A broken draft can no longer reach a participant.
+- [x] Recruitment panels: opt-in `settings.collectExternalId` stores `?pid=` / `?PROLIFIC_PID=`
+      on the session as `externalId` (exported), and an optional https `completionRedirectUrl`
+      shows a "Finish and return" button after the withdrawal code
 - [x] `DELETE /auth/me` — account erasure with password confirmation, cascading through
       Trials → Sessions → Experiments → Templates → Blob objects → Stimuli → User
 
@@ -160,7 +165,7 @@ Pure JavaScript in `frontend/src/engine/`, no React, no network. See
 - [x] 4 summary cards; thin-line frequency distributions (outlier-robust window centred on the peak) for RT per condition, per-participant accuracy per condition, and timing-quality score
 - [x] Participant table with timing score, per-trial drawer, exclude toggle, low-quality filter
 - [x] Manual Refresh (no polling); reloads swap data in place without a full-page flash
-- [x] CSV + JSON export, formula-injection safe: `kind=trials` (31 columns per trial — device,
+- [x] CSV + JSON export, formula-injection safe: `kind=trials` (32 columns per trial — device,
       calibration, the published `version`, the shuffle `seed`, engagement counts, and
       per-trial response/RT/frame data) or `kind=sessions` (accuracy/meanRt/medianRt per
       session and per block); `scope=clean` limits either to completed, non-excluded sessions
@@ -217,8 +222,8 @@ Full detail, including every known gap, in [privacy.md](privacy.md).
 - [x] `engine/selfcheck.mjs` — 21 assertions on the pure timing and flow logic
 - [x] `shared/templates/templates.check.mjs` — every template compiles and expands to the
       expected trial counts
-- [~] No test framework. These are hand-rolled `assert` scripts, so there is no runner, no
-      coverage measurement and no CI. `npm test` is literally `node test-routes.mjs`.
+- [~] No test framework. These are hand-rolled `assert` scripts, so there is no runner and no
+      coverage measurement. CI runs the frontend scripts, lint and build — not `npm test`. `npm test` is literally `node test-routes.mjs`.
 - [~] No frontend component or integration tests at all — `frontend/package.json` has no `test`
       script.
 - [ ] `npm test` needs the API running and takes about 3 minutes (it paces itself under the rate
