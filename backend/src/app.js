@@ -9,6 +9,7 @@ import generateRoutes from './routes/generate.js';
 import templateRoutes from './routes/templates.js';
 
 import { ApiResponse } from './utils/index.js';
+import { limit } from './middlewares/index.js';
 
 export const app = express();
 
@@ -30,6 +31,8 @@ app.use((_req, res, next) => {
 });
 app.use(express.json({ limit: '5mb' }));
 app.use(express.text({ type: 'text/plain' })); // for beacon route
+// Per-IP ceiling across the whole API; per-route buckets in routes/ are tighter.
+app.use('/api', limit('global', 300, '1 m'));
 
 // ─── Health ────────────────────────────────────────────────
 app.get('/api/v1/health', (_req, res) => {

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth, validate, rateLimit } from '../middlewares/index.js';
+import { requireAuth, validate, limit } from '../middlewares/index.js';
 import {
   registerUser,
   loginUser,
@@ -35,11 +35,11 @@ const deleteSchema = z.object({
 
 // ─── Routes ────────────────────────────────────────────────
 
-router.post('/register', rateLimit, validate(registerSchema), registerUser);
-router.post('/login', rateLimit, validate(loginSchema), loginUser);
-router.post('/refresh', rateLimit, validate(refreshSchema), refreshAccessToken);
+router.post('/register', limit('register', 3, '1 h'), validate(registerSchema), registerUser);
+router.post('/login', limit('login', 10, '15 m'), validate(loginSchema), loginUser);
+router.post('/refresh', limit('refresh', 30, '15 m'), validate(refreshSchema), refreshAccessToken);
 router.post('/logout', requireAuth, validate(refreshSchema), logoutUser);
 router.get('/me', requireAuth, getCurrentUser);
-router.delete('/me', requireAuth, rateLimit, validate(deleteSchema), deleteAccount);
+router.delete('/me', requireAuth, limit('delete-account', 5, '1 h', { by: 'user' }), validate(deleteSchema), deleteAccount);
 
 export default router;

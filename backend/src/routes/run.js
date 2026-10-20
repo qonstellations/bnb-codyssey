@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { rateLimit, validate, requireObjectId, requireSessionToken } from '../middlewares/index.js';
+import { rateLimit, limit, validate, requireObjectId, requireSessionToken } from '../middlewares/index.js';
 import {
   getExperimentBySlug,
   startSession,
@@ -56,7 +56,7 @@ const completeSessionSchema = z.object({
 // Session writes check the token first: validate() strips unknown keys like `token`.
 
 router.get('/:slug', rateLimit, getExperimentBySlug);
-router.post('/:slug/sessions', rateLimit, validate(createSessionSchema), startSession);
+router.post('/:slug/sessions', rateLimit, limit('session-start', 10, '1 h'), validate(createSessionSchema), startSession);
 router.patch('/sessions/:sessionId', rateLimit, requireSessionToken, validate(patchSessionSchema), patchSession);
 router.post('/sessions/:sessionId/trials', rateLimit, requireSessionToken, validate(trialsSchema), uploadTrials);
 router.post('/sessions/:sessionId/complete', rateLimit, requireSessionToken, validate(completeSessionSchema), completeSession);

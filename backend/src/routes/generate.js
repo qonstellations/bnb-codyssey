@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth, validate, rateLimit } from '../middlewares/index.js';
+import { requireAuth, validate, limit } from '../middlewares/index.js';
 import { generateDraft } from '../controllers/generate.controller.js';
 
 const router = Router();
@@ -21,6 +21,7 @@ const generateSchema = z.object({
   fresh: z.boolean().optional(),
 });
 
-router.post('/', requireAuth, rateLimit, validate(generateSchema), generateDraft);
+// Groq spend: per-user hourly bucket plus one daily bucket shared by everyone.
+router.post('/', requireAuth, limit('ai', 15, '1 h', { by: 'user' }), limit('ai-day', 100, '1 d', { by: 'global' }), validate(generateSchema), generateDraft);
 
 export default router;
