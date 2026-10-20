@@ -313,7 +313,9 @@ participant app and everything else to the researcher SPA. Not yet deployed.
    preset at *Other*. In Storage, connect a **public** Blob store (this sets
    `BLOB_READ_WRITE_TOKEN`). From the Marketplace, add Upstash Redis (this sets
    `UPSTASH_REDIS_REST_*`). Set `MONGODB_URI`, fresh `ACCESS_TOKEN_SECRET` and
-   `REFRESH_TOKEN_SECRET` values (`openssl rand -hex 64`), and `GROQ_API_KEY`. Deploy.
+   `REFRESH_TOKEN_SECRET` values (`openssl rand -hex 64`), `GROQ_API_KEY`, and the demo caps
+   (`MAX_USERS`, optionally `MAX_SESSIONS_PER_EXPERIMENT` / `MAX_STIMULI_PER_USER`). Deploy.
+   Upstash is mandatory: without it every API call returns 503 instead of running unlimited.
 3. **Web project**: import the same repo, set Root Directory to `frontend` (Vite preset), and set
    `VITE_API_URL=https://<api>.vercel.app`. It is baked in at build time, so redeploy after any
    change. Deploy.
@@ -325,7 +327,6 @@ participant app and everything else to the researcher SPA. Not yet deployed.
 
 ```bash
 curl https://<api>.vercel.app/api/v1/health
-cd backend && TEST_API_URL=https://<api>.vercel.app/api/v1 MONGODB_URI=<prod> npm test
 ```
 
 Then, in a browser, upload an image and an audio stimulus, publish, and complete a run from
@@ -333,6 +334,34 @@ Then, in a browser, upload an image and an audio stimulus, publish, and complete
 
 Preview deployments of the web project have their own origin, so CORS blocks them unless you
 add that origin to `CORS_ORIGIN`.
+
+**Demo limits**
+
+Each researcher has one live study at a time. Publishing a second returns 409 `ACTIVE_LIMIT`
+until the first is closed; re-publishing the live one (a new version) is fine. A partial unique
+index (`one_active_per_owner`) enforces it, so two concurrent publishes can't both win. An
+existing database with several live studies per owner must close the extras before that index
+can build.
+
+Upstash buckets, per IP unless noted:
+
+| Route | Limit |
+|---|---|
+| everything under `/api` | 300 / min |
+| `POST /auth/register` | 3 / h |
+| `POST /auth/login` · `POST /auth/refresh` | 10 · 30 / 15 min |
+| `POST /experiments`, `POST /experiments/:id/duplicate` | 30 / h per user |
+| `PUT /experiments/:id` | 120 / min per user |
+| `POST /experiments/:id/publish` | 10 / h per user |
+| `POST /generate` | 15 / h per user, 100 / day across everyone |
+| `POST /stimuli/upload-url` | 20 / h per user |
+| `POST /run/:slug/sessions` | 10 / h |
+| other `/run` routes | 10 / 10 s |
+
+Signups stop at `MAX_USERS` (403 `DEMO_FULL`). A study stops taking participants at
+`MAX_SESSIONS_PER_EXPERIMENT` (default 200). Each researcher can keep `MAX_STIMULI_PER_USER`
+files (default 30, 10 MB each). `npm test` signs up more users than `/register` allows, so run
+it against a local API started with `RATE_LIMITS=off`; Vercel ignores that flag.
 
 ## Documentation
 

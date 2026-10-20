@@ -74,9 +74,13 @@ All **error** responses share this shape:
 | `401` | `UNAUTHORIZED` | Missing/invalid access or refresh token |
 | `403` | `FORBIDDEN` | Authenticated but don't own the resource |
 | `404` | `NOT_FOUND` | Resource doesn't exist (incl. malformed ObjectId params) |
+| `403` | `DEMO_FULL` | Signup refused: `MAX_USERS` accounts already exist |
+| `403` | `LIMIT_REACHED` | Stimulus library already holds `MAX_STIMULI_PER_USER` files |
 | `409` | `CONFLICT` | Action conflicts with current state (e.g. publishing a closed experiment) |
-| `410` | `GONE` | Experiment is closed |
-| `429` | `RATE_LIMITED` | Too many requests (Upstash sliding window, or Groq's own TPM limit) |
+| `409` | `ACTIVE_LIMIT` | Publishing while another of your experiments is live (one live study per user) |
+| `410` | `GONE` | Experiment is closed, or reached `MAX_SESSIONS_PER_EXPERIMENT` participants |
+| `429` | `RATE_LIMITED` | Too many requests (Upstash sliding window, or Groq's own TPM limit); `Retry-After` header set |
+| `503` | `UNAVAILABLE` | Deployed without Upstash env vars; the API refuses to run unlimited |
 | `502` | `GENERATION_FAILED` | AI provider (Groq) failed |
 | `503` | `AI_NOT_CONFIGURED` | `GROQ_API_KEY` is not set on the server |
 | `500` | `INTERNAL_ERROR` | Unexpected server error |
@@ -1005,7 +1009,7 @@ Update the experiment title, draft, or status. Partial update — only the field
 |---|---|---|---|
 | `title` | `string` | no | max 200 chars |
 | `draft` | `object` | no | validated by experiment Zod schema |
-| `status` | `string` | no | `"draft"` \| `"active"` \| `"closed"` |
+| `status` | `string` | no | `"draft"` \| `"closed"` (`"active"` only via `POST /experiments/:id/publish`) |
 
 > **Closing an experiment:** Send `{ "status": "closed" }` to stop accepting new participants. The `GET /run/:slug` route will return `410 Gone` for closed experiments.
 
@@ -1213,7 +1217,7 @@ Save a stimulus metadata record after the file has been uploaded to Vercel Blob.
 | `name` | `string` | yes | 1–200 chars, trimmed |
 | `type` | `string` | yes | `"image"` \| `"audio"` \| `"video"` |
 | `url` | `string` | yes | valid URL, must be a `blob.vercel-storage.com` URL |
-| `size` | `number` | yes | integer, 1 byte – 50 MB |
+| `size` | `number` | yes | integer, 1 byte – 10 MB |
 
 **Response: `201 Created`**
 

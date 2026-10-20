@@ -120,7 +120,7 @@ let accU2;
   log('second user register → 201', r.status === 201, `got ${r.status}`);
 }
 // 10-12. experiments
-let expId, dupId;
+let expId, dupId, validDraft;
 {
   const r = await req('POST', '/experiments', { token: acc1, body: { title: 'API Test Stroop' } });
   expId = r.data?.experiment?._id;
@@ -134,7 +134,7 @@ let expId, dupId;
   log('GET /experiments/:id non-owner → 403', cross.status === 403, `got ${cross.status}`);
   const malformed = await req('GET', '/experiments/not-an-id', { token: acc1 });
   log('GET /experiments/:id malformed → 404 (not 500)', malformed.status === 404, `got ${malformed.status}`);
-  const validDraft = {
+  validDraft = {
     settings: { consentText: 'I agree to participate.' },
     blocks: [{
       id: 'block_main', label: 'Main', shuffle: false, maxRepeats: 2, repetitions: 1,
@@ -162,6 +162,16 @@ let slug;
   const closed = await req('PUT', `/experiments/${dupId}`, { token: acc1, body: { status: 'closed' } });
   const pubClosed = await req('POST', `/experiments/${dupId}/publish`, { token: acc1 });
   log('publish closed → 409 CONFLICT', closed.status === 200 && pubClosed.status === 409, `got ${pubClosed.status}`);
+  // one live study per user
+  const other = await req('POST', '/experiments', { token: acc1, body: { title: 'Second Live Attempt', draft: validDraft } });
+  const otherId = other.data?.experiment?._id;
+  const pubOther = await req('POST', `/experiments/${otherId}/publish`, { token: acc1 });
+  log('publish 2nd study while one live → 409 ACTIVE_LIMIT', pubOther.status === 409 && pubOther.data?.error?.code === 'ACTIVE_LIMIT', `got ${pubOther.status}`);
+  const putActive = await req('PUT', `/experiments/${otherId}`, { token: acc1, body: { status: 'active' } });
+  log('PUT status active (bypass) → 400', putActive.status === 400, `got ${putActive.status}`);
+  const repub = await req('POST', `/experiments/${expId}/publish`, { token: acc1 });
+  log('re-publish live study → 200 v2, same slug', repub.status === 200 && repub.data?.version === 2 && repub.data?.slug === slug, `got ${repub.status} v=${repub.data?.version}`);
+  await req('DELETE', `/experiments/${otherId}`, { token: acc1 });
   // regression: fresh experiment with no draft save at all
   const fresh = await req('POST', '/experiments', { token: acc1, body: { title: 'Fresh No Draft' } });
   const freshId = fresh.data?.experiment?._id;
@@ -184,17 +194,26 @@ let sessId, withdrawCode, sessToken;
   log('GET /run/:slug → 200 snapshot', g.status === 200 && !!g.data?.experiment?.snapshot, `got ${g.status}`);
   const miss = await req('GET', '/run/ZZZZZZZZ'); await sleep(1200);
   log('GET /run/:slug unknown → 404', miss.status === 404, `got ${miss.status}`);
-  // publish a fresh copy first — a closed *draft* has no slug, so /run/<slug> would 404.
-  // (dupId itself is already closed from the section-13 conflict check above.)
-  const closeCopy = await req('POST', `/experiments/${expId}/duplicate`, { token: acc1 });
+  // publish a fresh study first — a closed *draft* has no slug, so /run/<slug> would 404.
+  // Owned by user 2: user 1's live study (expId) blocks a second publish.
+  const closeCopy = await req('POST', '/experiments', { token: accU2, body: { title: 'Closed Copy', draft: validDraft } });
   const closeCopyId = closeCopy.data?.experiment?._id;
-  const pubCopy = await req('POST', `/experiments/${closeCopyId}/publish`, { token: acc1 });
+  const pubCopy = await req('POST', `/experiments/${closeCopyId}/publish`, { token: accU2 });
   const closedSlug = pubCopy.data?.slug;
-  await req('PUT', `/experiments/${closeCopyId}`, { token: acc1, body: { status: 'closed' } });
+  await req('PUT', `/experiments/${closeCopyId}`, { token: accU2, body: { status: 'closed' } });
   const closedExp = await req('GET', `/run/${closedSlug}`); await sleep(1200);
   log('GET /run/:slug closed → 410 GONE', closedExp.status === 410 && closedExp.data?.error?.code === 'GONE', `got ${closedExp.status} (slug ${closedSlug})`);
   const closedSession = await req('POST', `/run/${closedSlug}/sessions`, { body: P }); await sleep(1200);
   log('POST /run/:slug/sessions on closed → 410 GONE', closedSession.status === 410, `got ${closedSession.status}`);
+  await req('DELETE', `/experiments/${closeCopyId}`, { token: accU2 });
+  // race: two different studies published at once → the unique index lets exactly one through
+  const a = await req('POST', '/experiments', { token: accU2, body: { title: 'Race A', draft: validDraft } });
+  const b = await req('POST', '/experiments', { token: accU2, body: { title: 'Race B', draft: validDraft } });
+  const ids = [a.data?.experiment?._id, b.data?.experiment?._id];
+  const race = await Promise.all(ids.map((id) => req('POST', `/experiments/${id}/publish`, { token: accU2 })));
+  const codes = race.map((r) => r.status).sort();
+  log('concurrent publish of 2 studies → one 200, one 409', codes[0] === 200 && codes[1] === 409, `got ${codes}`);
+  for (const id of ids) await req('DELETE', `/experiments/${id}`, { token: accU2 });
   const s = await req('POST', `/run/${slug}/sessions`, { body: P }); await sleep(1200);
   sessId = s.data?.sessionId; withdrawCode = s.data?.withdrawCode; sessToken = s.data?.token;
   log('POST /run/:slug/sessions → 201 ids', s.status === 201 && !!sessId && !!sessToken && /^[A-Za-z0-9]{8}$/.test(withdrawCode || ''), `code=${withdrawCode}`);

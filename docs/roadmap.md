@@ -112,7 +112,7 @@ Pure JavaScript in `frontend/src/engine/`, no React, no network. See
 - [x] Trials/complete/PATCH refuse any session that is not `in_progress` (409)
 - [x] Beacon payload Zod-validated before insert; rate-limit keyed on the first forwarded IP
 - [x] Malformed ObjectId params → 404, never 500
-- [x] Stimulus `url` must be a Blob URL; `size` capped at 50 MB
+- [x] Stimulus `url` must be a Blob URL; `size` capped at 10 MB
 - [x] CSV export neutralises formula injection
 - [~] `draft` is `z.any()` on experiment create and update, so saves are still unvalidated — but
       `publishExperiment` now calls `validateExperiment()` and refuses with a 400, and publishes
