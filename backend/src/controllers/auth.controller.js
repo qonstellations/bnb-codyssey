@@ -21,6 +21,12 @@ export const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(409, 'Email already registered', [], '', 'CONFLICT');
   }
 
+  // Demo seat cap. ponytail: two simultaneous signups at the edge can overshoot by one; fine for a demo.
+  const maxUsers = Number(process.env.MAX_USERS) || 0;
+  if (maxUsers && (await User.estimatedDocumentCount()) >= maxUsers) {
+    throw new ApiError(403, 'The demo is full — no new accounts right now.', [], '', 'DEMO_FULL');
+  }
+
   const user = await User.create({ name, email, password });
 
   const accessToken = user.generateAccessToken();

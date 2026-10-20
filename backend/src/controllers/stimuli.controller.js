@@ -2,8 +2,14 @@ import { del } from '@vercel/blob';
 import Stimulus from '../models/Stimulus.js';
 import { asyncHandler, ApiError, ApiResponse } from '../utils/index.js';
 
+export const MAX_STIMULUS_BYTES = 10 * 1024 * 1024; // 10 MB — keeps the demo inside Blob's free quota
+const MAX_STIMULI_PER_USER = Number(process.env.MAX_STIMULI_PER_USER) || 30;
+
 // Generate a Vercel Blob client upload token
 export const getUploadUrl = asyncHandler(async (req, res) => {
+  if ((await Stimulus.countDocuments({ owner: req.userId })) >= MAX_STIMULI_PER_USER) {
+    throw new ApiError(403, `Stimulus library is full (${MAX_STIMULI_PER_USER} files). Delete some to upload more.`, [], '', 'LIMIT_REACHED');
+  }
   const { handleUpload } = await import('@vercel/blob/client');
 
   // The SDK's handleUpload speaks client events, not our {filename, contentType}
@@ -16,7 +22,7 @@ export const getUploadUrl = asyncHandler(async (req, res) => {
     request: req,
     onBeforeGenerateToken: async () => ({
       allowedContentTypes: [req.body.contentType],
-      maximumSizeInBytes: 50 * 1024 * 1024, // 50 MB
+      maximumSizeInBytes: MAX_STIMULUS_BYTES,
       addRandomSuffix: true, // re-uploading "red.png" must not collide
     }),
     // No onUploadCompleted: Blob would call it back without our auth header (401).

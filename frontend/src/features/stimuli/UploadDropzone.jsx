@@ -4,7 +4,7 @@ import { Group, Progress, Stack, Text } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { saveStimulus, uploadStimulusFile } from '../../api/stimuli.js'
 
-const MAX_SIZE = 20 * 1024 * 1024 // 20MB
+const MAX_SIZE = 10 * 1024 * 1024 // 10MB, mirrors MAX_STIMULUS_BYTES on the API
 const ACCEPT = ['image/*', 'audio/*']
 
 function stimulusType(contentType) {
@@ -46,13 +46,13 @@ export default function UploadDropzone({ onUploaded }) {
       maxSize={MAX_SIZE}
       loading={uploading}
       onReject={() =>
-        notifications.show({ color: 'red', message: 'File rejected — images/audio only, max 20MB' })
+        notifications.show({ color: 'red', message: 'File rejected — images/audio only, max 10MB' })
       }
     >
       <Stack align="center" gap="xs" py="lg">
         <Text size="sm">Drag images or audio here, or click to browse</Text>
         <Text size="xs" c="dimmed">
-          Max 20MB per file
+          Max 10MB per file
         </Text>
       </Stack>
       {uploading && (

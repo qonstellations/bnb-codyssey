@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth, validate, requireObjectId } from '../middlewares/index.js';
+import { requireAuth, validate, requireObjectId, limit } from '../middlewares/index.js';
 import {
   getUploadUrl,
   createStimulus,
   getStimuli,
   deleteStimulus,
+  MAX_STIMULUS_BYTES,
 } from '../controllers/stimuli.controller.js';
 
 const router = Router();
@@ -28,12 +29,12 @@ const createSchema = z.object({
   url: z.string().url().refine((u) => u.includes('.blob.vercel-storage.com'), {
     message: 'URL must be a Vercel Blob URL',
   }),
-  size: z.number().int().positive().max(50 * 1024 * 1024),
+  size: z.number().int().positive().max(MAX_STIMULUS_BYTES),
 });
 
 // ─── Routes ────────────────────────────────────────────────
 
-router.post('/upload-url', requireAuth, validate(uploadUrlSchema), getUploadUrl);
+router.post('/upload-url', requireAuth, limit('upload', 20, '1 h', { by: 'user' }), validate(uploadUrlSchema), getUploadUrl);
 router.post('/', requireAuth, validate(createSchema), createStimulus);
 router.get('/', requireAuth, getStimuli);
 router.delete('/:id', requireAuth, deleteStimulus);

@@ -134,10 +134,11 @@ async function main() {
           score: calibration.score,
         },
       })
-    } catch {
+    } catch (err) {
       return errorScreen(root, {
         title: 'Could not start session',
-        message: 'Check your connection and try again.',
+        // 410 (study full/closed) and 429 carry a reason worth showing; network errors don't.
+        message: err?.status === 410 || err?.status === 429 ? err.message : 'Check your connection and try again.',
         onRetry: main,
       })
     }

@@ -76,6 +76,11 @@ export const startSession = asyncHandler(async (req, res) => {
   if (experiment.status === 'closed') {
     throw new ApiError(410, 'This experiment is no longer accepting participants', [], '', 'GONE');
   }
+  // Demo storage cap per study (Atlas free tier).
+  const maxSessions = Number(process.env.MAX_SESSIONS_PER_EXPERIMENT) || 200;
+  if ((await Session.countDocuments({ experimentId: experiment._id })) >= maxSessions) {
+    throw new ApiError(410, 'This experiment has reached its participant limit', [], '', 'GONE');
+  }
 
   // Only this browser gets the token; later writes to the session must present it.
   const token = crypto.randomBytes(24).toString('hex');
