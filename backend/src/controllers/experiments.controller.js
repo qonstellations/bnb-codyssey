@@ -92,6 +92,26 @@ export const duplicateExperiment = asyncHandler(async (req, res) => {
   res.status(201).json(new ApiResponse(201, { experiment: copy }, 'Experiment duplicated successfully'));
 });
 
+function activeLimit(title) {
+  return new ApiError(
+    409,
+    `You already have a live study${title ? ` ("${title}")` : ''}. Close it before publishing another.`,
+    [],
+    '',
+    'ACTIVE_LIMIT'
+  );
+}
+
+// A concurrent publish that beat the pre-check trips one_active_per_owner instead.
+async function savePublished(exp) {
+  try {
+    await exp.save();
+  } catch (err) {
+    if (err?.code === 11000 && err.keyPattern?.owner) throw activeLimit();
+    throw err;
+  }
+}
+
 // Freeze draft as a new version, generate slug on first publish
 export const publishExperiment = asyncHandler(async (req, res) => {
   const exp = req.experiment;
@@ -105,6 +125,10 @@ export const publishExperiment = asyncHandler(async (req, res) => {
   if (!ok) {
     throw new ApiError(400, `Experiment is invalid: ${errors[0]}`, errors, '', 'VALIDATION_ERROR');
   }
+
+  // One live study per researcher; re-publishing the live one (a new version) is fine.
+  const live = await Experiment.findOne({ owner: exp.owner, status: 'active', _id: { $ne: exp._id } }).select('title');
+  if (live) throw activeLimit(live.title);
 
   const nextVersion = (exp.versions.length || 0) + 1;
 
@@ -122,7 +146,7 @@ export const publishExperiment = asyncHandler(async (req, res) => {
     for (let i = 0; i < 3 && !exp.slug; i++) {
       exp.slug = generateSlug();
       try {
-        await exp.save();
+        await savePublished(exp);
       } catch (err) {
         if (err?.code === 11000) exp.slug = null;
         else throw err;
@@ -132,7 +156,7 @@ export const publishExperiment = asyncHandler(async (req, res) => {
       throw new ApiError(500, 'Could not generate unique slug', [], '', 'INTERNAL_ERROR');
     }
   } else {
-    await exp.save();
+    await savePublished(exp);
   }
 
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';

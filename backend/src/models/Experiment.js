@@ -21,5 +21,11 @@ const experimentSchema = new mongoose.Schema(
 experimentSchema.index({ owner: 1 });
 // ponytail: partial index — drafts (slug null/missing) skip it, real slugs stay unique
 experimentSchema.index({ slug: 1 }, { unique: true, partialFilterExpression: { slug: { $type: 'string' } } });
+// One live (publishable) study per researcher. The DB enforces it, so two concurrent
+// publishes can't both win the race the controller's pre-check leaves open.
+experimentSchema.index(
+  { owner: 1 },
+  { unique: true, partialFilterExpression: { status: 'active' }, name: 'one_active_per_owner' }
+);
 
 export default mongoose.model('Experiment', experimentSchema);

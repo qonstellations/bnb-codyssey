@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth, ownsExperiment, validate } from '../middlewares/index.js';
+import { requireAuth, ownsExperiment, validate, limit } from '../middlewares/index.js';
 import {
   getExperiments,
   createExperiment,
@@ -24,7 +24,8 @@ const updateSchema = z
   .object({
     title: z.string().max(200).optional(),
     draft: z.any().optional(),
-    status: z.enum(['draft', 'active', 'closed']).optional(),
+    // 'active' only via POST /:id/publish, which enforces one live study per user.
+    status: z.enum(['draft', 'closed']).optional(),
   })
   .refine((d) => d.title !== undefined || d.draft !== undefined || d.status !== undefined, {
     message: 'At least one field required',
@@ -32,12 +33,14 @@ const updateSchema = z
 
 // ─── Routes ────────────────────────────────────────────────
 
+const createLimit = limit('create', 30, '1 h', { by: 'user' });
+
 router.get('/', requireAuth, getExperiments);
-router.post('/', requireAuth, validate(createSchema), createExperiment);
+router.post('/', requireAuth, createLimit, validate(createSchema), createExperiment);
 router.get('/:id', requireAuth, ownsExperiment, getExperimentById);
-router.put('/:id', requireAuth, ownsExperiment, validate(updateSchema), updateExperiment);
+router.put('/:id', requireAuth, limit('autosave', 120, '1 m', { by: 'user' }), ownsExperiment, validate(updateSchema), updateExperiment);
 router.delete('/:id', requireAuth, ownsExperiment, deleteExperiment);
-router.post('/:id/duplicate', requireAuth, ownsExperiment, duplicateExperiment);
-router.post('/:id/publish', requireAuth, ownsExperiment, publishExperiment);
+router.post('/:id/duplicate', requireAuth, createLimit, ownsExperiment, duplicateExperiment);
+router.post('/:id/publish', requireAuth, limit('publish', 10, '1 h', { by: 'user' }), ownsExperiment, publishExperiment);
 
 export default router;
