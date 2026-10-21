@@ -3,7 +3,7 @@ import Stimulus from '../models/Stimulus.js';
 import { asyncHandler, ApiError, ApiResponse } from '../utils/index.js';
 
 export const MAX_STIMULUS_BYTES = 10 * 1024 * 1024; // 10 MB — keeps the demo inside Blob's free quota
-const MAX_STIMULI_PER_USER = Number(process.env.MAX_STIMULI_PER_USER) || 30;
+const MAX_STIMULI_PER_USER = Number(process.env.MAX_STIMULI_PER_USER) || 15;
 
 // Generate a Vercel Blob client upload token
 export const getUploadUrl = asyncHandler(async (req, res) => {

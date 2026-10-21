@@ -359,8 +359,8 @@ Upstash buckets, per IP unless noted:
 | other `/run` routes | 10 / 10 s |
 
 Signups stop at `MAX_USERS` (403 `DEMO_FULL`). A study stops taking participants at
-`MAX_SESSIONS_PER_EXPERIMENT` (default 200). Each researcher can keep `MAX_STIMULI_PER_USER`
-files (default 30, 10 MB each). `npm test` signs up more users than `/register` allows, so run
+`MAX_SESSIONS_PER_EXPERIMENT` (default 50). Each researcher can keep `MAX_STIMULI_PER_USER`
+files (default 15, 10 MB each). `npm test` signs up more users than `/register` allows, so run
 it against a local API started with `RATE_LIMITS=off`; Vercel ignores that flag.
 
 ## Documentation
