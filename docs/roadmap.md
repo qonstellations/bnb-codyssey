@@ -28,9 +28,9 @@ called out explicitly.
 
 ## Deployment status
 
-**Vercel-ready, not yet deployed.** There are two Vercel projects from this repo: API
-(`backend/`, one Express function behind `backend/vercel.json`) and web (`frontend/`, with SPA
-and `/run/*` rewrites in `frontend/vercel.json`). The runbook is in the
+**Vercel-ready, not yet deployed.** One Vercel project from the repo root: the root `vercel.json`
+builds `frontend/` as static files and serves the Express app as one function via `api/index.js`,
+all on one origin. The runbook is in the
 [README](../README.md#deployment-status). There is still no Dockerfile. CI (`.github/workflows/ci.yml`) runs lint, the three
 `.check.mjs`/selfcheck scripts and the frontend build on every PR and push to `main`; the API
 contract test is not in it.

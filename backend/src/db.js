@@ -4,6 +4,7 @@ let cached = null;
 
 export async function connectDB() {
   if (cached) return cached;
+  if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is not set');
   cached = await mongoose.connect(process.env.MONGODB_URI);
   console.log('MongoDB connected');
   await dropStaleSlugIndex();

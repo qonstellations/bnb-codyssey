@@ -34,8 +34,6 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
-        env:
-          VITE_API_URL: http://localhost:3001
 
 # ponytail: backend `npm test` needs MongoDB and ~3 min under the rate limiter; run it locally
 # with RATE_LIMITS=off before a release. Add a mongo service job if it starts getting skipped.

@@ -1,14 +1,14 @@
 import { ApiError, asyncHandler } from '../utils/index.js';
 
 // Upstash sliding-window limiters, one Redis prefix per bucket.
-// Without UPSTASH_REDIS_REST_URL: skipped in local dev, refused (503) on Vercel —
+// Without UPSTASH_REDIS_REST_URL (or KV_REST_API_URL from the Vercel integration): skipped in local dev, refused (503) on Vercel —
 // a deployed demo with no limiter is worse than a deployed demo that's down.
 // RATE_LIMITS=off skips them locally (test-routes.mjs runs more signups than the auth buckets allow).
 let redis = null;
 const limiters = new Map();
 
 async function getLimiter(name, tokens, window) {
-  if (!process.env.UPSTASH_REDIS_REST_URL) {
+  if (!process.env.UPSTASH_REDIS_REST_URL && !process.env.KV_REST_API_URL) {
     if (process.env.VERCEL) {
       throw new ApiError(503, 'Rate limiter not configured', [], '', 'UNAVAILABLE');
     }

@@ -159,7 +159,9 @@ export const publishExperiment = asyncHandler(async (req, res) => {
     await savePublished(exp);
   }
 
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  // On Vercel the app and API share an origin, so the production domain is the frontend.
+  const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL && `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  const frontendUrl = process.env.FRONTEND_URL || vercelUrl || 'http://localhost:5173';
 
   res.json(
     new ApiResponse(

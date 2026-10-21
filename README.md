@@ -133,7 +133,7 @@ npm run dev
 # terminal 2 — web app on :5173
 cd frontend
 npm ci
-cp .env.example .env      # VITE_API_URL=http://localhost:3001
+cp .env.example .env      # optional; vite proxies /api to :3001
 npm run dev
 ```
 
@@ -149,9 +149,9 @@ Open <http://localhost:5173> and sign up. Sanity-check the API with
 | `MONGODB_URI` | yes | MongoDB Atlas connection string |
 | `ACCESS_TOKEN_SECRET` | yes | signs 15-minute access tokens |
 | `REFRESH_TOKEN_SECRET` | yes | signs 7-day refresh tokens |
-| `CORS_ORIGIN` | yes | allowed frontend origin, e.g. `http://localhost:5173` |
-| `FRONTEND_URL` | yes | used to build the participant link on publish |
-| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | no | rate limiting, 10 req / 10 s per IP. **Silently skipped when unset** — the limiter logs nothing and fails open |
+| `CORS_ORIGIN` | no | allowed origins when the frontend is on another host; unset allows any |
+| `FRONTEND_URL` | no | participant-link base; defaults to the Vercel production domain, else `http://localhost:5173` |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Vercel only | rate limiting (`KV_REST_API_*` from the Vercel integration also work). Skipped locally when unset; every request gets 503 on Vercel without it |
 | `BLOB_READ_WRITE_TOKEN` | stimuli only | Vercel Blob upload token |
 | `GROQ_API_KEY` | AI only | AI experiment generation. The key never reaches the browser |
 
@@ -159,7 +159,7 @@ Open <http://localhost:5173> and sign up. Sanity-check the API with
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `VITE_API_URL` | yes | API base, e.g. `http://localhost:3001` |
+| `VITE_API_URL` | no | API on another host. Empty = same origin (`/api`, proxied to :3001 by `vite dev`) |
 
 ### Verifying the install
 
@@ -301,39 +301,39 @@ The frontend has no component or integration tests at all.
 
 ## Deployment status
 
-**Vercel-ready, two projects from this repo.** `backend/vercel.json` routes every path to the
-Express function in `backend/api/index.js`. `frontend/vercel.json` sends `/run/*` to the
-participant app and everything else to the researcher SPA. Not yet deployed.
+**One Vercel project serves everything.** The root `vercel.json` builds `frontend/` into static
+files (the researcher SPA, plus `run.html` for `/run/*`) and runs the Express app as one function
+through `api/index.js`. The app and the API share an origin, so there is no `VITE_API_URL`,
+`CORS_ORIGIN` or `FRONTEND_URL` to set.
 
 **One-time setup**
 
-1. **MongoDB Atlas**: create a prod DB user and allow `0.0.0.0/0` under Network Access (Vercel
-   IPs are dynamic).
-2. **API project**: import the repo, set Root Directory to `backend`, and leave the framework
-   preset at *Other*. In Storage, connect a **public** Blob store (this sets
-   `BLOB_READ_WRITE_TOKEN`). From the Marketplace, add Upstash Redis (this sets
-   `UPSTASH_REDIS_REST_*`). Set `MONGODB_URI`, fresh `ACCESS_TOKEN_SECRET` and
-   `REFRESH_TOKEN_SECRET` values (`openssl rand -hex 64`), `GROQ_API_KEY`, and the demo caps
-   (`MAX_USERS`, optionally `MAX_SESSIONS_PER_EXPERIMENT` / `MAX_STIMULI_PER_USER`). Deploy.
-   Upstash is mandatory: without it every API call returns 503 instead of running unlimited.
-3. **Web project**: import the same repo, set Root Directory to `frontend` (Vite preset), and set
-   `VITE_API_URL=https://<api>.vercel.app`. It is baked in at build time, so redeploy after any
-   change. Deploy.
-4. Back on the API, set `FRONTEND_URL` and `CORS_ORIGIN` to `https://<web>.vercel.app`
-   (comma-separate extra origins such as a custom domain), then redeploy.
-5. Seed once from your machine: `cd backend && MONGODB_URI=<prod> SEED_PASSWORD=<pick> npm run seed`.
+1. **MongoDB Atlas**: under Network Access, allow `0.0.0.0/0` (Vercel IPs are dynamic).
+2. **Vercel**: Add New → Project, import this repo, and leave Root Directory at `./`. The build
+   and install settings come from `vercel.json`, so don't override them.
+3. **Storage tab**: add **Upstash Redis** and a **public** Blob store. Each injects its own env
+   vars. Upstash is mandatory: without it every API call returns 503.
+4. **Environment variables**:
+
+   | Variable | Value |
+   |---|---|
+   | `MONGODB_URI` | your Atlas connection string |
+   | `ACCESS_TOKEN_SECRET` | `openssl rand -hex 64` |
+   | `REFRESH_TOKEN_SECRET` | `openssl rand -hex 64` (a different one) |
+   | `GROQ_API_KEY` | from the Groq console |
+   | `MAX_USERS` | signup cap, e.g. `50` (unset = unlimited) |
+
+   Optional: `MAX_SESSIONS_PER_EXPERIMENT` (default 50), `MAX_STIMULI_PER_USER` (default 15).
+5. Deploy (or redeploy, if the first build ran before the env vars existed).
 
 **Check it**
 
 ```bash
-curl https://<api>.vercel.app/api/v1/health
+curl https://<app>.vercel.app/api/v1/health
 ```
 
-Then, in a browser, upload an image and an audio stimulus, publish, and complete a run from
-`/run/<slug>` on a phone.
-
-Preview deployments of the web project have their own origin, so CORS blocks them unless you
-add that origin to `CORS_ORIGIN`.
+Then, in a browser, sign up, upload an image and an audio stimulus, publish, and complete a run
+from `/run/<slug>` on a phone. Participant links use the project's production domain.
 
 **Demo limits**
 

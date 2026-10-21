@@ -23,6 +23,8 @@ function runRewrite() {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), runRewrite()],
+  // Same-origin /api like on Vercel; set VITE_API_URL to hit a remote API instead.
+  server: { proxy: { '/api': 'http://localhost:3001' } },
   build: {
     rollupOptions: {
       input: {
